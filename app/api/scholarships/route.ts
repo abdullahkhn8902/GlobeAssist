@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
-export const maxDuration = 90
+export const maxDuration = 60
 
 interface Scholarship {
   id: string
@@ -34,11 +34,16 @@ const MIN_REQUIRED_SCHOLARSHIPS = 5
 
 function validateScholarship(scholarship: Scholarship): boolean {
   return (
-    typeof scholarship.id === "string" && scholarship.id.length > 0 &&
-    typeof scholarship.name === "string" && scholarship.name.length > 3 &&
-    typeof scholarship.university === "string" && scholarship.university.length > 0 &&
-    typeof scholarship.location === "string" && scholarship.location.length > 0 &&
-    typeof scholarship.qualification === "string" && scholarship.qualification.length > 0
+    typeof scholarship.id === "string" &&
+    scholarship.id.length > 0 &&
+    typeof scholarship.name === "string" &&
+    scholarship.name.length > 3 &&
+    typeof scholarship.university === "string" &&
+    scholarship.university.length > 0 &&
+    typeof scholarship.location === "string" &&
+    scholarship.location.length > 0 &&
+    typeof scholarship.qualification === "string" &&
+    scholarship.qualification.length > 0
   )
 }
 
@@ -342,7 +347,7 @@ Format:
           }
 
           if (attempt < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 2000))
+            await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)))
             continue
           }
           throw parseError

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 90
+export const maxDuration = 60
 
 interface Program {
   name: string

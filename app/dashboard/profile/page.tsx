@@ -1,10 +1,8 @@
-import { ShimmerLoader } from "../../../components/dashboard/shimmer-loader" // Import ShimmerLoader component
+import { ShimmerLoader } from "@/components/dashboard/shimmer-loader"
 
 const ProfilePage = () => {
-  const isLoading = false // Declare isLoading variable
-  const userProfile = {} // Declare userProfile variable
-
-  // ... existing code up to loading state ...
+  const isLoading = false
+  const userProfile = {}
 
   if (isLoading) {
     return <ShimmerLoader message="Loading your profile..." subMessage="Fetching your account details" type="full" />
@@ -18,9 +16,7 @@ const ProfilePage = () => {
     )
   }
 
-  // ... rest of existing code ...
-
   return <div>{/* Profile content goes here */}</div>
 }
 
-export default ProfilePage // Default export
+export default ProfilePage
