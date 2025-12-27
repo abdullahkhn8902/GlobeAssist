@@ -142,7 +142,7 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
     const { text } = await extractText(pdf, { mergePages: true })
     return cleanText(text || "")
   } catch (error) {
-    console.log("[v0] unpdf extraction failed, trying fallback...")
+    console.log("[GlobeAssist Server] unpdf extraction failed, trying fallback...")
 
     // Fallback: Try to extract text manually from PDF structure
     const pdfContent = buffer.toString("latin1")
@@ -189,23 +189,23 @@ async function extractResumeText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
 
-  console.log("[v0] Extracting text from", ext, "file, size:", buffer.length, "bytes")
+  console.log("[GlobeAssist Server] Extracting text from", ext, "file, size:", buffer.length, "bytes")
 
   if (ext === "pdf") {
     const text = await extractPdfText(buffer)
-    console.log("[v0] Extracted", text.length, "characters from PDF")
+    console.log("[GlobeAssist Server] Extracted", text.length, "characters from PDF")
     return text
   }
 
   if (ext === "docx") {
     const text = await extractDocxText(buffer)
-    console.log("[v0] Extracted", text.length, "characters from DOCX")
+    console.log("[GlobeAssist Server] Extracted", text.length, "characters from DOCX")
     return text
   }
 
   if (ext === "txt") {
     const text = await extractTxtText(buffer)
-    console.log("[v0] Extracted", text.length, "characters from TXT")
+    console.log("[GlobeAssist Server] Extracted", text.length, "characters from TXT")
     return text
   }
 
@@ -217,7 +217,7 @@ async function extractResumeText(file: File): Promise<string> {
       const doc = await extractor.extract(buffer)
       const rawBody = typeof (doc as any).getBody === "function" ? (doc as any).getBody() : (doc as any).getBody || ""
       const text = cleanText(rawBody || "")
-      console.log("[v0] Extracted", text.length, "characters from DOC")
+      console.log("[GlobeAssist Server] Extracted", text.length, "characters from DOC")
       return text
     } catch {
       throw new Error("Legacy .doc files are difficult to parse. Please convert to .docx or PDF.")
@@ -235,7 +235,7 @@ async function parseWithLLM(resumeText: string): Promise<CVParsedData> {
   const maxChars = 25000
   const input = resumeText.length > maxChars ? resumeText.slice(0, maxChars) : resumeText
 
-  console.log("[v0] Sending", input.length, "characters to LLM for parsing...")
+  console.log("[GlobeAssist Server] Sending", input.length, "characters to LLM for parsing...")
 
   const systemPrompt = `You are a professional resume parser. Your task is to extract structured information from resumes.
 
@@ -322,7 +322,7 @@ Return ONLY the JSON object, nothing else.`
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error("[v0] OpenRouter API error:", response.status, errorText)
+      console.error("[GlobeAssist Server] OpenRouter API error:", response.status, errorText)
       throw new Error(`LLM API error ${response.status}: ${errorText.slice(0, 200)}`)
     }
 
@@ -330,11 +330,11 @@ Return ONLY the JSON object, nothing else.`
     const content: string | undefined = data?.choices?.[0]?.message?.content
 
     if (!content || !content.trim()) {
-      console.error("[v0] LLM returned empty content")
+      console.error("[GlobeAssist Server] LLM returned empty content")
       throw new Error("LLM returned empty response")
     }
 
-    console.log("[v0] LLM response received, length:", content.length)
+    console.log("[GlobeAssist Server] LLM response received, length:", content.length)
 
     // Extract JSON from response
     const jsonStr = extractJsonObject(content)
@@ -342,17 +342,17 @@ Return ONLY the JSON object, nothing else.`
     let parsed: unknown
     try {
       parsed = JSON.parse(jsonStr)
-      console.log("[v0] JSON parsed successfully")
+      console.log("[GlobeAssist Server] JSON parsed successfully")
     } catch {
-      console.log("[v0] JSON parse failed, attempting repair...")
+      console.log("[GlobeAssist Server] JSON parse failed, attempting repair...")
       const repaired = jsonrepair(jsonStr)
       parsed = JSON.parse(repaired)
-      console.log("[v0] JSON repaired and parsed successfully")
+      console.log("[GlobeAssist Server] JSON repaired and parsed successfully")
     }
 
     // Validate with Zod schema
     const validated = CVParsedSchema.parse(parsed)
-    console.log("[v0] Schema validation passed")
+    console.log("[GlobeAssist Server] Schema validation passed")
     return validated
   } finally {
     clearTimeout(timeout)
@@ -361,7 +361,7 @@ Return ONLY the JSON object, nothing else.`
 
 // -------------------- Main Handler --------------------
 export async function POST(request: NextRequest) {
-  console.log("[v0] ========== Resume parsing request received ==========")
+  console.log("[GlobeAssist Server] ========== Resume parsing request received ==========")
 
   try {
     // Validate environment
@@ -369,12 +369,12 @@ export async function POST(request: NextRequest) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !serviceKey) {
-      console.error("[v0] Missing Supabase credentials")
+      console.error("[GlobeAssist Server] Missing Supabase credentials")
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
     }
 
     if (!PERPLEXITY_API_KEY) {
-      console.error("[v0] Missing OpenAIGPTfreeAPI")
+      console.error("[GlobeAssist Server] Missing OpenAIGPTfreeAPI")
       return NextResponse.json({ error: "Missing API key configuration" }, { status: 500 })
     }
 
@@ -390,19 +390,19 @@ export async function POST(request: NextRequest) {
 
     const { data: userRes, error: userErr } = await supabaseAdmin.auth.getUser(token)
     if (userErr || !userRes?.user) {
-      console.error("[v0] Auth error:", userErr?.message)
+      console.error("[GlobeAssist Server] Auth error:", userErr?.message)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = userRes.user.id
-    console.log("[v0] User authenticated:", userId)
+    console.log("[GlobeAssist Server] User authenticated:", userId)
 
     // Get file from form data
     let formData: FormData
     try {
       formData = await request.formData()
     } catch (formError) {
-      console.error("[v0] FormData parse error:", formError)
+      console.error("[GlobeAssist Server] FormData parse error:", formError)
       return NextResponse.json({ error: "Invalid form data" }, { status: 400 })
     }
 
@@ -412,7 +412,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided. Use 'cv' as the form field name." }, { status: 400 })
     }
 
-    console.log("[v0] File received:", file.name, "| Type:", file.type, "| Size:", file.size, "bytes")
+    console.log("[GlobeAssist Server] File received:", file.name, "| Type:", file.type, "| Size:", file.size, "bytes")
 
     // Validate file
     if (file.size > 10 * 1024 * 1024) {
@@ -431,12 +431,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Extract text from file
-    console.log("[v0] Step 1: Extracting text...")
+    console.log("[GlobeAssist Server] Step 1: Extracting text...")
     let rawText: string
     try {
       rawText = await extractResumeText(file)
     } catch (extractError) {
-      console.error("[v0] Text extraction error:", extractError)
+      console.error("[GlobeAssist Server] Text extraction error:", extractError)
       const message = extractError instanceof Error ? extractError.message : "Failed to extract text"
       return NextResponse.json(
         {
@@ -457,15 +457,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("[v0] Text extracted successfully:", rawText.length, "characters")
+    console.log("[GlobeAssist Server] Text extracted successfully:", rawText.length, "characters")
 
     // Step 2: Parse with LLM
-    console.log("[v0] Step 2: Parsing with LLM...")
+    console.log("[GlobeAssist Server] Step 2: Parsing with LLM...")
     let parsedData: CVParsedData
     try {
       parsedData = await parseWithLLM(rawText)
     } catch (parseError) {
-      console.error("[v0] LLM parsing error:", parseError)
+      console.error("[GlobeAssist Server] LLM parsing error:", parseError)
       const message = parseError instanceof Error ? parseError.message : "Failed to parse resume"
       return NextResponse.json(
         {
@@ -477,12 +477,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("[v0] Resume parsed. Name:", parsedData.personalInfo.name || "(not found)")
+    console.log("[GlobeAssist Server] Resume parsed. Name:", parsedData.personalInfo.name || "(not found)")
 
     // Step 3: Upload file to storage (optional, non-blocking)
     let fileUrl: string | null = null
     try {
-      console.log("[v0] Step 3: Uploading to storage...")
+      console.log("[GlobeAssist Server] Step 3: Uploading to storage...")
       const bucket = "cvs"
       const storagePath = `${userId}/${Date.now()}-${safeFileName(file.name)}`
       const fileBuffer = await file.arrayBuffer()
@@ -495,19 +495,19 @@ export async function POST(request: NextRequest) {
         })
 
       if (uploadError) {
-        console.log("[v0] Storage upload warning:", uploadError.message)
+        console.log("[GlobeAssist Server] Storage upload warning:", uploadError.message)
         // Non-blocking - continue without file URL
       } else {
         fileUrl = uploadData?.path || null
-        console.log("[v0] File uploaded to:", fileUrl)
+        console.log("[GlobeAssist Server] File uploaded to:", fileUrl)
       }
     } catch (storageError) {
-      console.log("[v0] Storage error (non-blocking):", storageError)
+      console.log("[GlobeAssist Server] Storage error (non-blocking):", storageError)
       // Continue without storage
     }
 
     // Step 4: Update professional_profiles table with parsed data
-    console.log("[v0] Step 4: Saving to database...")
+    console.log("[GlobeAssist Server] Step 4: Saving to database...")
     try {
       const { error: updateError } = await supabaseAdmin.from("professional_profiles").upsert(
         {
@@ -522,17 +522,17 @@ export async function POST(request: NextRequest) {
       )
 
       if (updateError) {
-        console.error("[v0] Database update error:", updateError)
+        console.error("[GlobeAssist Server] Database update error:", updateError)
         // Still return success with parsed data even if DB save fails
       } else {
-        console.log("[v0] Database updated successfully")
+        console.log("[GlobeAssist Server] Database updated successfully")
       }
     } catch (dbError) {
-      console.error("[v0] Database error:", dbError)
+      console.error("[GlobeAssist Server] Database error:", dbError)
       // Continue - we still have the parsed data
     }
 
-    console.log("[v0] ========== Resume parsing completed successfully ==========")
+    console.log("[GlobeAssist Server] ========== Resume parsing completed successfully ==========")
 
     // Return the expected format for the frontend
     return NextResponse.json(
@@ -543,7 +543,7 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     )
   } catch (error) {
-    console.error("[v0] Unexpected error:", error)
+    console.error("[GlobeAssist Server] Unexpected error:", error)
     const message = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json(
       {

@@ -108,7 +108,7 @@ export default function CountryDetailPage() {
           setError(data.error || "Failed to load country details")
         }
       } catch (err) {
-        console.error("[v0] Error fetching country details:", err)
+        console.error("[GlobeAssist Server] Error fetching country details:", err)
         setError("Failed to connect to the server")
       } finally {
         setLoading(false)

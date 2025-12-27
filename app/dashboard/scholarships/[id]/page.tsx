@@ -100,7 +100,7 @@ export default function ScholarshipDetailPage() {
     }
 
     setFetchingLink(true)
-    console.log("[v0] User clicked Apply Now, fetching application link...")
+    console.log("[GlobeAssist Server] User clicked Apply Now, fetching application link...")
 
     try {
       const response = await fetch("/api/scholarships/get-link", {
@@ -123,20 +123,20 @@ export default function ScholarshipDetailPage() {
         const data = await response.json()
         const link = data.link
 
-        console.log("[v0] Got application link:", link)
+        console.log("[GlobeAssist Server] Got application link:", link)
 
         setScholarship((prev) => (prev ? { ...prev, applyLink: link } : null))
 
         window.open(link, "_blank", "noopener,noreferrer")
       } else {
-        console.error("[v0] Failed to fetch application link")
+        console.error("[GlobeAssist Server] Failed to fetch application link")
         const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
           `${scholarship.name} ${scholarship.university} official application form 2026`,
         )}`
         window.open(fallbackLink, "_blank", "noopener,noreferrer")
       }
     } catch (error) {
-      console.error("[v0] Error fetching application link:", error)
+      console.error("[GlobeAssist Server] Error fetching application link:", error)
       const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
         `${scholarship.name} ${scholarship.university} official application form 2026`,
       )}`

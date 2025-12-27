@@ -104,7 +104,7 @@ function getNextAvailableKey(): string | null {
 function markKeyAsRateLimited(key: string, resetTime?: number) {
   const resetAt = resetTime || Date.now() + 60000
   rateLimitedKeys.set(key, resetAt)
-  console.log(`[v0] Key ending in ...${key.slice(-8)} rate-limited until ${new Date(resetAt).toISOString()}`)
+  console.log(`[GlobeAssist Server] Key ending in ...${key.slice(-8)} rate-limited until ${new Date(resetAt).toISOString()}`)
 }
 
 class RateLimitedQueue {
@@ -269,14 +269,14 @@ async function openRouterChat(body: Record<string, unknown>, title: string) {
       if (!currentKey) {
         const waitTime = Math.min(...Array.from(rateLimitedKeys.values())) - Date.now()
         if (waitTime > 0 && waitTime < 120000) {
-          console.log(`[v0] All keys rate-limited. Waiting ${Math.ceil(waitTime / 1000)}s for reset...`)
+          console.log(`[GlobeAssist Server] All keys rate-limited. Waiting ${Math.ceil(waitTime / 1000)}s for reset...`)
           await sleep(waitTime + 1000)
           continue
         }
         throw new Error("All OpenRouter API keys are rate-limited. Please try again later.")
       }
 
-      console.log(`[v0] Using API key ending in ...${currentKey.slice(-8)}`)
+      console.log(`[GlobeAssist Server] Using API key ending in ...${currentKey.slice(-8)}`)
 
       for (let retry = 0; retry < maxRetriesPerKey; retry++) {
         try {
@@ -312,14 +312,14 @@ async function openRouterChat(body: Record<string, unknown>, title: string) {
             }
 
             markKeyAsRateLimited(currentKey, resetTime)
-            console.log(`[v0] Key rate-limited (429). Switching to next key...`)
+            console.log(`[GlobeAssist Server] Key rate-limited (429). Switching to next key...`)
             break
           }
 
           if (res.status === 502 || res.status === 503) {
             const backoff = Math.min(8000, 600 * 2 ** retry) + Math.floor(Math.random() * 250)
             console.warn(
-              `[v0] OpenRouter ${res.status}. Retry in ${backoff}ms (retry ${retry + 1}/${maxRetriesPerKey})`,
+              `[GlobeAssist Server] OpenRouter ${res.status}. Retry in ${backoff}ms (retry ${retry + 1}/${maxRetriesPerKey})`,
             )
             await sleep(backoff)
             continue
@@ -328,7 +328,7 @@ async function openRouterChat(body: Record<string, unknown>, title: string) {
           throw new Error(`OpenRouter API error: ${res.status} - ${lastErrText}`)
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") {
-            console.warn(`[v0] Request timeout. Retry ${retry + 1}/${maxRetriesPerKey}`)
+            console.warn(`[GlobeAssist Server] Request timeout. Retry ${retry + 1}/${maxRetriesPerKey}`)
             await sleep(1000)
             continue
           }
@@ -351,7 +351,7 @@ async function getCostOfLivingWithLLM(
 ): Promise<{ costOfLivingMin: number; costOfLivingMax: number }> {
   const serperKey = process.env.SERPER_GOOGLE_SEARCH_API
   if (!serperKey) {
-    console.log(`[v0] Missing SERPER_GOOGLE_SEARCH_API`)
+    console.log(`[GlobeAssist Server] Missing SERPER_GOOGLE_SEARCH_API`)
     return { costOfLivingMin: 0, costOfLivingMax: 0 }
   }
 
@@ -380,7 +380,7 @@ async function getCostOfLivingWithLLM(
       })
 
       if (!response.ok) {
-        console.log(`[v0] Serper failed for ${countryName}: ${response.status}`)
+        console.log(`[GlobeAssist Server] Serper failed for ${countryName}: ${response.status}`)
         return null
       }
       return response.json()
@@ -447,10 +447,10 @@ ${searchData}`,
       }
     }
 
-    console.log(`[v0] Could not parse cost for ${countryName}. LLM said: ${clean.slice(0, 200)}`)
+    console.log(`[GlobeAssist Server] Could not parse cost for ${countryName}. LLM said: ${clean.slice(0, 200)}`)
     return { costOfLivingMin: 0, costOfLivingMax: 0 }
   } catch (error) {
-    console.error(`[v0] Cost of living error for ${countryName}:`, error)
+    console.error(`[GlobeAssist Server] Cost of living error for ${countryName}:`, error)
     return { costOfLivingMin: 0, costOfLivingMax: 0 }
   }
 }
@@ -497,7 +497,7 @@ RULES:
 
   if (PERPLEXITY_API_KEY) {
     try {
-      console.log("[v0] Using Perplexity Sonar Pro for recommendations")
+      console.log("[GlobeAssist Server] Using Perplexity Sonar Pro for recommendations")
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -546,14 +546,14 @@ RULES:
                 }
               }
 
-              console.log(`[v0] Perplexity returned ${validRecommendations.length} valid recommendations`)
+              console.log(`[GlobeAssist Server] Perplexity returned ${validRecommendations.length} valid recommendations`)
               return validRecommendations.slice(0, 12)
             }
           }
         }
       }
     } catch (error) {
-      console.error("[v0] Perplexity recommendation error:", error)
+      console.error("[GlobeAssist Server] Perplexity recommendation error:", error)
     }
   }
 
@@ -605,7 +605,7 @@ RULES:
 
     return validRecommendations.slice(0, 12)
   } catch (err) {
-    console.warn("[v0] Falling back to budget-aware recommendations due to AI error:", err)
+    console.warn("[GlobeAssist Server] Falling back to budget-aware recommendations due to AI error:", err)
 
     const preferred = (profile.preferred_destination || "")
       .split(",")
@@ -745,7 +745,7 @@ export async function GET() {
       )
     }
 
-    console.log(`[v0] Available OpenRouter API keys: ${OPENROUTER_API_KEYS.length}`)
+    console.log(`[GlobeAssist Server] Available OpenRouter API keys: ${OPENROUTER_API_KEYS.length}`)
 
     const supabase = await createClient()
     const {
@@ -760,7 +760,7 @@ export async function GET() {
       )
     }
 
-    console.log(`[v0] Fetching recommendations for user: ${user.id}`)
+    console.log(`[GlobeAssist Server] Fetching recommendations for user: ${user.id}`)
 
     const { data: userProfile } = await supabase
       .from("user_profiles")
@@ -769,7 +769,7 @@ export async function GET() {
       .maybeSingle()
 
     const profileType = userProfile?.profile_type || "student"
-    console.log(`[v0] User profile type: ${profileType}`)
+    console.log(`[GlobeAssist Server] User profile type: ${profileType}`)
 
     const { data: existingRecommendations, error: fetchError } = await supabase
       .from("country_recommendations")
@@ -778,7 +778,7 @@ export async function GET() {
       .order("created_at", { ascending: false })
 
     if (fetchError) {
-      console.error(`[v0] Error fetching cached recommendations:`, fetchError)
+      console.error(`[GlobeAssist Server] Error fetching cached recommendations:`, fetchError)
     }
 
     if (existingRecommendations && existingRecommendations.length >= MIN_REQUIRED_COUNTRIES) {
@@ -793,7 +793,7 @@ export async function GET() {
       const completeCountries = countries.filter(validateCountryData)
 
       if (completeCountries.length >= MIN_REQUIRED_COUNTRIES) {
-        console.log(`[v0] Found ${completeCountries.length} complete cached recommendations, returning from DB`)
+        console.log(`[GlobeAssist Server] Found ${completeCountries.length} complete cached recommendations, returning from DB`)
 
         let profileData = null
         if (profileType === "student") {
@@ -834,13 +834,13 @@ export async function GET() {
         })
       } else {
         console.log(
-          `[v0] Cache has incomplete data (${completeCountries.length}/${existingRecommendations.length} valid), clearing and regenerating`,
+          `[GlobeAssist Server] Cache has incomplete data (${completeCountries.length}/${existingRecommendations.length} valid), clearing and regenerating`,
         )
         await supabase.from("country_recommendations").delete().eq("user_id", user.id)
       }
     }
 
-    console.log(`[v0] No valid cached recommendations found, generating new ones from LLM`)
+    console.log(`[GlobeAssist Server] No valid cached recommendations found, generating new ones from LLM`)
 
     let profileForRecommendations: StudentProfile | null = null
 
@@ -890,19 +890,19 @@ export async function GET() {
     }
 
     const profile = profileForRecommendations as StudentProfile
-    console.log(`[v0] Starting recommendations for profile:`, profile.degree_to_pursue)
+    console.log(`[GlobeAssist Server] Starting recommendations for profile:`, profile.degree_to_pursue)
 
     const recommendations = await getAIRecommendations(profile, profileType as "student" | "professional")
-    console.log(`[v0] Got ${recommendations.length} recommendations`)
+    console.log(`[GlobeAssist Server] Got ${recommendations.length} recommendations`)
 
-    console.log("[v0] Fetching data for all recommended countries...")
+    console.log("[GlobeAssist Server] Fetching data for all recommended countries...")
 
     const countryPromises = recommendations.map(async (rec) => {
       const normalizedName = normalizeCountryName(rec.name)
       const imageUrl = getCountryImage(normalizedName)
 
       if (!imageUrl) {
-        console.log(`[v0] No image for ${normalizedName}`)
+        console.log(`[GlobeAssist Server] No image for ${normalizedName}`)
         return null
       }
 
@@ -917,7 +917,7 @@ export async function GET() {
           reason: rec.reason,
         }
       } catch (error) {
-        console.error(`[v0] Error fetching data for ${normalizedName}:`, error)
+        console.error(`[GlobeAssist Server] Error fetching data for ${normalizedName}:`, error)
         return null
       }
     })
@@ -932,25 +932,25 @@ export async function GET() {
       (c): c is NonNullable<typeof c> => c !== null && validateCountryDataPartial(c as CountryData),
     )
 
-    console.log(`[v0] Complete countries: ${completeCountries.length}, Partial: ${partialCountries.length}`)
+    console.log(`[GlobeAssist Server] Complete countries: ${completeCountries.length}, Partial: ${partialCountries.length}`)
 
     const countries = completeCountries.length >= MIN_REQUIRED_COUNTRIES ? completeCountries : partialCountries
 
     if (countries.length < MIN_REQUIRED_COUNTRIES) {
-      console.error(`[v0] Insufficient valid countries: ${countries.length}`)
+      console.error(`[GlobeAssist Server] Insufficient valid countries: ${countries.length}`)
       return NextResponse.json(
         { success: false, error: "Unable to fetch complete data. Please try again." },
         { status: 503 },
       )
     }
 
-    console.log("[v0] Writing complete dataset to database...")
+    console.log("[GlobeAssist Server] Writing complete dataset to database...")
 
     // Delete existing recommendations
     const { error: deleteError } = await supabase.from("country_recommendations").delete().eq("user_id", user.id)
 
     if (deleteError) {
-      console.error("[v0] Error clearing old recommendations:", deleteError)
+      console.error("[GlobeAssist Server] Error clearing old recommendations:", deleteError)
     }
 
     const recommendationsToInsert = countries.map((country) => ({
@@ -968,7 +968,7 @@ export async function GET() {
     const { error: insertError } = await supabase.from("country_recommendations").insert(recommendationsToInsert)
 
     if (insertError) {
-      console.error("[v0] Error storing recommendations:", insertError)
+      console.error("[GlobeAssist Server] Error storing recommendations:", insertError)
       return NextResponse.json(
         { success: false, error: "Failed to save recommendations. Please try again." },
         { status: 500 },
@@ -981,14 +981,14 @@ export async function GET() {
       .eq("user_id", user.id)
 
     if (verifyError || !verifyData || verifyData.length < MIN_REQUIRED_COUNTRIES) {
-      console.error("[v0] Database verification failed:", verifyError)
+      console.error("[GlobeAssist Server] Database verification failed:", verifyError)
       return NextResponse.json(
         { success: false, error: "Data storage verification failed. Please try again." },
         { status: 500 },
       )
     }
 
-    console.log(`[v0] Successfully stored ${countries.length} validated recommendations for user ${user.id}`)
+    console.log(`[GlobeAssist Server] Successfully stored ${countries.length} validated recommendations for user ${user.id}`)
 
     const responseCountries: CountryData[] = countries.map((c) => ({
       name: c.name,
@@ -1009,7 +1009,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("[v0] Error in recommendations API:", error)
+    console.error("[GlobeAssist Server] Error in recommendations API:", error)
 
     const msg = error instanceof Error ? error.message : String(error)
     const isRateLimit = msg.includes("429") || msg.includes("rate-limited") || msg.includes("exhausted")
@@ -1041,14 +1041,14 @@ export async function DELETE() {
     const { error: deleteError } = await supabase.from("country_recommendations").delete().eq("user_id", user.id)
 
     if (deleteError) {
-      console.error("[v0] Error deleting recommendations:", deleteError)
+      console.error("[GlobeAssist Server] Error deleting recommendations:", deleteError)
       return NextResponse.json({ success: false, error: "Failed to clear recommendations" }, { status: 500 })
     }
 
-    console.log(`[v0] Cleared recommendations for user ${user.id}`)
+    console.log(`[GlobeAssist Server] Cleared recommendations for user ${user.id}`)
     return NextResponse.json({ success: true, message: "Recommendations cleared" })
   } catch (error) {
-    console.error("[v0] Error in DELETE recommendations:", error)
+    console.error("[GlobeAssist Server] Error in DELETE recommendations:", error)
     return NextResponse.json({ success: false, error: "Failed to clear recommendations" }, { status: 500 })
   }
 }

@@ -97,7 +97,7 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
           setError(data.error || "Failed to load jobs")
         }
       } catch (err) {
-        console.error("[v0] Error fetching jobs:", err)
+        console.error("[GlobeAssist Server] Error fetching jobs:", err)
         setError("Failed to connect to server")
       } finally {
         setLoading(false)

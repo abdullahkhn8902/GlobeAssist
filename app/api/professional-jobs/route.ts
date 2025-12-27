@@ -96,7 +96,7 @@ async function perplexityChat(messages: any[], title: string, maxRetries = 3): P
       if (res.status === 429) {
         // Rate limited - wait and retry
         const waitTime = 2000 * (attempt + 1)
-        console.log(`[v0] Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`)
+        console.log(`[GlobeAssist Server] Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`)
         await sleep(waitTime)
         continue
       }
@@ -104,7 +104,7 @@ async function perplexityChat(messages: any[], title: string, maxRetries = 3): P
       throw new Error(`API error: ${res.status}`)
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        console.log(`[v0] Request timeout on attempt ${attempt + 1}/${maxRetries}`)
+        console.log(`[GlobeAssist Server] Request timeout on attempt ${attempt + 1}/${maxRetries}`)
         await sleep(1000 * (attempt + 1))
         continue
       }
@@ -172,12 +172,12 @@ async function getCostOfLiving(countryName: string): Promise<{ costOfLivingMin: 
         }
       }
     } catch (e) {
-      console.error(`[v0] Failed to parse cost JSON for ${countryName}:`, e)
+      console.error(`[GlobeAssist Server] Failed to parse cost JSON for ${countryName}:`, e)
     }
 
     return { costOfLivingMin: 0, costOfLivingMax: 0 }
   } catch (error) {
-    console.error(`[v0] Error getting cost of living for ${countryName}:`, error)
+    console.error(`[GlobeAssist Server] Error getting cost of living for ${countryName}:`, error)
     return { costOfLivingMin: 0, costOfLivingMax: 0 }
   }
 }
@@ -204,11 +204,11 @@ async function getJobCount(countryName: string, jobTitle: string, industry: stri
         const parsed = JSON.parse(jsonMatch[0])
         if (parsed.jobCount !== undefined) {
           const count = Math.max(0, Math.min(Number(parsed.jobCount), 100000))
-          console.log(`[v0] Job count for ${countryName} (${jobTitle}): ${count}`)
+          console.log(`[GlobeAssist Server] Job count for ${countryName} (${jobTitle}): ${count}`)
           return count
         }
       } catch (e) {
-        console.error(`[v0] Failed to parse job count JSON for ${countryName}:`, e)
+        console.error(`[GlobeAssist Server] Failed to parse job count JSON for ${countryName}:`, e)
       }
     }
 
@@ -218,12 +218,12 @@ async function getJobCount(countryName: string, jobTitle: string, industry: stri
     if (numMatch) {
       const count = Number.parseInt(numMatch[0].replace(/,/g, "")) || 0
       const reasonableCount = Math.max(20, Math.min(count, 5000))
-      console.log(`[v0] Fallback job count for ${countryName}: ${reasonableCount}`)
+      console.log(`[GlobeAssist Server] Fallback job count for ${countryName}: ${reasonableCount}`)
       return reasonableCount
     }
 
     // Final fallback: Use tier-based estimation
-    console.log(`[v0] Using tier-based estimation for ${countryName}`)
+    console.log(`[GlobeAssist Server] Using tier-based estimation for ${countryName}`)
     const budgetData = COUNTRY_BUDGET_DATA.find((c) => c.country.toLowerCase() === countryName.toLowerCase())
 
     if (budgetData) {
@@ -235,13 +235,13 @@ async function getJobCount(countryName: string, jobTitle: string, industry: stri
       const baseJobs = [800, 500, 300, 150, 50][budgetData.tier - 1] || 100
       const randomFactor = 0.8 + Math.random() * 0.4 // 0.8 to 1.2
       const estimatedJobs = Math.round(baseJobs * randomFactor)
-      console.log(`[v0] Tier-based job count for ${countryName} (T${budgetData.tier}): ${estimatedJobs}`)
+      console.log(`[GlobeAssist Server] Tier-based job count for ${countryName} (T${budgetData.tier}): ${estimatedJobs}`)
       return estimatedJobs
     }
 
     return Math.floor(Math.random() * 200) + 50
   } catch (error) {
-    console.error(`[v0] Error getting job count for ${countryName}:`, error)
+    console.error(`[GlobeAssist Server] Error getting job count for ${countryName}:`, error)
     // Conservative fallback
     return Math.floor(Math.random() * 150) + 30
   }
@@ -259,7 +259,7 @@ async function getCountryRecommendations(
   const isPreferredAffordable = preferredDestination && affordableNames.includes(preferredDestination)
 
   if (!PERPLEXITY_API_KEY) {
-    console.log("[v0] No Perplexity API key, using budget-filtered countries")
+    console.log("[GlobeAssist Server] No Perplexity API key, using budget-filtered countries")
     const recommendations = affordableCountries.slice(0, 6).map((c) => ({
       name: c.country,
       reason: `${getTierDescription(c.tier)} option - Settlement cost: $${c.professionalUsdMin.toLocaleString()}-$${c.professionalUsdMax.toLocaleString()}`,
@@ -315,7 +315,7 @@ Return ONLY valid JSON with this exact structure:
 }`
 
   try {
-    console.log("[v0] Getting personalized country recommendations from Perplexity")
+    console.log("[GlobeAssist Server] Getting personalized country recommendations from Perplexity")
     const data = await perplexityChat([{ role: "user", content: prompt }], "Professional Country Recommendations")
 
     const content = data.choices?.[0]?.message?.content || ""
@@ -374,19 +374,19 @@ Return ONLY valid JSON with this exact structure:
                 existingNames.add(affordable.country.toLowerCase())
               }
             }
-            console.log(`[v0] Perplexity returned ${validRecommendations.length} valid recommendations`)
+            console.log(`[GlobeAssist Server] Perplexity returned ${validRecommendations.length} valid recommendations`)
             return validRecommendations.slice(0, 6)
           }
         }
       } catch (error) {
-        console.error("[v0] Failed to parse recommendations JSON:", error)
+        console.error("[GlobeAssist Server] Failed to parse recommendations JSON:", error)
       }
     }
   } catch (error) {
-    console.error("[v0] Error getting country recommendations from Perplexity:", error)
+    console.error("[GlobeAssist Server] Error getting country recommendations from Perplexity:", error)
   }
 
-  console.log("[v0] Using fallback budget-based recommendations")
+  console.log("[GlobeAssist Server] Using fallback budget-based recommendations")
   const fallbackRecommendations = affordableCountries
     .filter((c) => getCountryImage(c.country) !== null)
     .slice(0, 6)
@@ -436,7 +436,7 @@ function validateCountryData(country: CountryJobData): boolean {
 export async function GET() {
   try {
     if (!PERPLEXITY_API_KEY) {
-      console.error("[v0] Perplexity API key is not configured")
+      console.error("[GlobeAssist Server] Perplexity API key is not configured")
       return NextResponse.json({ success: false, error: "API configuration error" }, { status: 500 })
     }
 
@@ -477,7 +477,7 @@ export async function GET() {
 
       const allValid = countries.every(validateCountryData)
       if (allValid) {
-        console.log("[v0] Using validated cached job recommendations")
+        console.log("[GlobeAssist Server] Using validated cached job recommendations")
         return NextResponse.json({ success: true, countries, cached: true })
       }
     }
@@ -492,16 +492,16 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Professional profile not found" }, { status: 404 })
     }
 
-    console.log(`[v0] Generating job recommendations for ${profile.current_job_title}`)
+    console.log(`[GlobeAssist Server] Generating job recommendations for ${profile.current_job_title}`)
 
     const recommendations = await getCountryRecommendations(profile as ProfessionalProfile)
     const budgetMax = profile.budget_max || 10000
 
-    console.log(`[v0] Fetching detailed data for ${recommendations.length} countries in parallel...`)
+    console.log(`[GlobeAssist Server] Fetching detailed data for ${recommendations.length} countries in parallel...`)
 
     const countryPromises = recommendations.map(async (rec) => {
       try {
-        console.log(`[v0] Processing ${rec.name}...`)
+        console.log(`[GlobeAssist Server] Processing ${rec.name}...`)
 
         const [costData, jobCount] = await Promise.all([
           getCostOfLiving(rec.name),
@@ -526,13 +526,13 @@ export async function GET() {
 
         if (validateCountryData(countryData)) {
           console.log(
-            `[v0] Completed ${rec.name}: ${jobCount} jobs, Cost: $${costData.costOfLivingMin}-${costData.costOfLivingMax}`,
+            `[GlobeAssist Server] Completed ${rec.name}: ${jobCount} jobs, Cost: $${costData.costOfLivingMin}-${costData.costOfLivingMax}`,
           )
           return countryData
         }
         return null
       } catch (error) {
-        console.error(`[v0] Error processing ${rec.name}:`, error)
+        console.error(`[GlobeAssist Server] Error processing ${rec.name}:`, error)
         return null
       }
     })
@@ -540,17 +540,17 @@ export async function GET() {
     const countryResults = await Promise.all(countryPromises)
     const countries = countryResults.filter((c): c is CountryJobData => c !== null)
 
-    console.log(`[v0] Completed processing. Valid countries: ${countries.length}`)
+    console.log(`[GlobeAssist Server] Completed processing. Valid countries: ${countries.length}`)
 
     if (countries.length < MIN_REQUIRED_COUNTRIES) {
-      console.error(`[v0] Insufficient valid countries: ${countries.length}`)
+      console.error(`[GlobeAssist Server] Insufficient valid countries: ${countries.length}`)
       return NextResponse.json(
         { success: false, error: "Unable to fetch complete data. Please try again." },
         { status: 503 },
       )
     }
 
-    console.log("[v0] Storing recommendations in database...")
+    console.log("[GlobeAssist Server] Storing recommendations in database...")
 
     await supabase.from("job_recommendations").delete().eq("user_id", user.id)
 
@@ -569,12 +569,12 @@ export async function GET() {
     const { error: insertError } = await supabase.from("job_recommendations").insert(upsertData)
 
     if (insertError) {
-      console.error("[v0] Error storing recommendations:", insertError)
+      console.error("[GlobeAssist Server] Error storing recommendations:", insertError)
     }
 
     return NextResponse.json({ success: true, countries, cached: false })
   } catch (error) {
-    console.error("[v0] Unexpected error in professional-jobs route:", error)
+    console.error("[GlobeAssist Server] Unexpected error in professional-jobs route:", error)
     return NextResponse.json(
       { success: false, error: "An unexpected error occurred. Please try again later." },
       { status: 500 },
@@ -599,7 +599,7 @@ export async function DELETE() {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Error deleting job recommendations:", error)
+    console.error("[GlobeAssist Server] Error deleting job recommendations:", error)
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
   }
 }

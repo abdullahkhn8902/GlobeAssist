@@ -56,7 +56,7 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
           setError(data.error || "Failed to load job details")
         }
       } catch (err) {
-        console.error("[v0] Error fetching job details:", err)
+        console.error("[GlobeAssist Server] Error fetching job details:", err)
         setError("Failed to connect to server")
       } finally {
         setLoading(false)

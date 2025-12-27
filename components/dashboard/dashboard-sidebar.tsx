@@ -95,7 +95,7 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut()
       router.push("/auth/login")
     } catch (error) {
-      console.error("[v0] Error signing out:", error)
+      console.error("[GlobeAssist Server] Error signing out:", error)
       setIsSigningOut(false)
     }
   }

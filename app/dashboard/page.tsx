@@ -52,7 +52,7 @@ export default function DashboardHome() {
       const response = await fetch(apiEndpoint)
       const data = await response.json()
 
-      console.log("[v0] Recommendations response:", {
+      console.log("[GlobeAssist Server] Recommendations response:", {
         success: data.success,
         cached: data.cached,
         countryCount: data.countries?.length,
@@ -70,7 +70,7 @@ export default function DashboardHome() {
         setError(data.error || "Failed to load recommendations")
       }
     } catch (err) {
-      console.error("[v0] Error fetching recommendations:", err)
+      console.error("[GlobeAssist Server] Error fetching recommendations:", err)
       setError("Failed to connect to the server. Please try again.")
     } finally {
       setLoading(false)
@@ -98,7 +98,7 @@ export default function DashboardHome() {
       // Fetch new recommendations
       await fetchRecommendations()
     } catch (err) {
-      console.error("[v0] Error regenerating recommendations:", err)
+      console.error("[GlobeAssist Server] Error regenerating recommendations:", err)
       setError("Failed to regenerate recommendations. Please try again.")
     } finally {
       setIsRegenerating(false)

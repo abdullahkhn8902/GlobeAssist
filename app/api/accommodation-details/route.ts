@@ -38,7 +38,7 @@ interface AccommodationData {
 // Efficient API call using Sonar Pro - optimized prompt to reduce tokens
 async function fetchAccommodationData(universityName: string, countryName: string): Promise<AccommodationData | null> {
   try {
-    console.log(`[v0] Fetching accommodation data for ${universityName}, ${countryName}`)
+    console.log(`[GlobeAssist Server] Fetching accommodation data for ${universityName}, ${countryName}`)
 
     // Optimized prompt - concise to save tokens
     const prompt = `${universityName} in ${countryName} accommodation for international students. Return JSON only:
@@ -69,7 +69,7 @@ async function fetchAccommodationData(universityName: string, countryName: strin
     })
 
     if (!response.ok) {
-      console.error(`[v0] Sonar API error: ${response.status}`)
+      console.error(`[GlobeAssist Server] Sonar API error: ${response.status}`)
       return null
     }
 
@@ -77,23 +77,23 @@ async function fetchAccommodationData(universityName: string, countryName: strin
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {
-      console.error("[v0] No content in Sonar response")
+      console.error("[GlobeAssist Server] No content in Sonar response")
       return null
     }
 
     // Parse JSON response
     const jsonMatch = content.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      console.error("[v0] Could not extract JSON from response")
+      console.error("[GlobeAssist Server] Could not extract JSON from response")
       return null
     }
 
     const parsed = JSON.parse(jsonMatch[0])
-    console.log("[v0] Successfully parsed accommodation data")
+    console.log("[GlobeAssist Server] Successfully parsed accommodation data")
 
     return parsed
   } catch (error) {
-    console.error("[v0] Error fetching accommodation data:", error)
+    console.error("[GlobeAssist Server] Error fetching accommodation data:", error)
     return null
   }
 }
@@ -114,7 +114,7 @@ async function fetchAccommodationImages(universityName: string): Promise<string[
 
     return images
   } catch (error) {
-    console.error("[v0] Error fetching images:", error)
+    console.error("[GlobeAssist Server] Error fetching images:", error)
     return []
   }
 }
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing parameters" }, { status: 400 })
     }
 
-    console.log(`[v0] Accommodation request for: ${universityName}, ${countryName}`)
+    console.log(`[GlobeAssist Server] Accommodation request for: ${universityName}, ${countryName}`)
 
     // Check cache first to avoid unnecessary API calls
     const { createClient } = await import("@/lib/supabase/server")
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (cached) {
-      console.log("[v0] Returning cached accommodation data")
+      console.log("[GlobeAssist Server] Returning cached accommodation data")
       return NextResponse.json({
         success: true,
         data: cached.data,
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch fresh data efficiently
-    console.log("[v0] Fetching fresh accommodation data")
+    console.log("[GlobeAssist Server] Fetching fresh accommodation data")
     const accommodationData = await fetchAccommodationData(universityName, countryName)
 
     if (!accommodationData) {
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
       { onConflict: "university_name,country_name" },
     )
 
-    console.log("[v0] Successfully cached accommodation data")
+    console.log("[GlobeAssist Server] Successfully cached accommodation data")
 
     return NextResponse.json({
       success: true,
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
       cached: false,
     })
   } catch (error) {
-    console.error("[v0] Error in accommodation-details route:", error)
+    console.error("[GlobeAssist Server] Error in accommodation-details route:", error)
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
   }
 }
