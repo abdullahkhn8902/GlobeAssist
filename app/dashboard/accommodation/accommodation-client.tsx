@@ -37,7 +37,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
 
   useEffect(() => {
     if (initialCity && !hasSearched) {
-      console.log("[v0] Auto-loading accommodations for city:", initialCity)
+      console.log("[GlobeAssist Server] Auto-loading accommodations for city:", initialCity)
       fetchAccommodations(initialCity)
       setHasSearched(true)
     } else if (!initialCity) {
@@ -49,7 +49,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
     try {
       setLoading(true)
       setError(null)
-      console.log("[v0] Fetching accommodations for:", cityName, "Country:", country)
+      console.log("[GlobeAssist Server] Fetching accommodations for:", cityName, "Country:", country)
 
       const params = new URLSearchParams()
       params.set("city", cityName)
@@ -58,7 +58,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
       const response = await fetch(`/api/professional-accommodations?${params.toString()}`)
       const data = await response.json()
 
-      console.log("[v0] Response:", data)
+      console.log("[GlobeAssist Server] Response:", data)
 
       if (data.success) {
         setAccommodations(data.accommodations || [])
@@ -68,7 +68,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
         setError(data.error || "Failed to load accommodations")
       }
     } catch (err) {
-      console.error("[v0] Error fetching accommodations:", err)
+      console.error("[GlobeAssist Server] Error fetching accommodations:", err)
       setError("Failed to connect to server. Please try again.")
     } finally {
       setLoading(false)

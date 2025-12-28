@@ -15,7 +15,6 @@ export default function HomePage() {
       <FeaturesSection />
       <AgentShowcase />
       <HowItWorksSection />
-      <TestimonialsSection />
       <CTASection />
       <Footer />
     </main>

@@ -19,10 +19,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
       return NextResponse.json({ error: "Invalid job data" }, { status: 400 })
     }
 
-    console.log(`[v0] Fetching apply link on-demand for: ${job.title} at ${job.company}`)
+    console.log(`[GlobeAssist Server] Fetching apply link on-demand for: ${job.title} at ${job.company}`)
 
     if (!SERPER_API_KEY || !OPENROUTER_API_KEY) {
-      console.log("[v0] Missing required API keys for link fetching")
+      console.log("[GlobeAssist Server] Missing required API keys for link fetching")
       return NextResponse.json({
         link: `https://www.google.com/search?q=${encodeURIComponent(
           `${job.title} ${job.company} apply now careers ${job.location} job posting`,
@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
     const validLink = await findBestJobApplicationLink(job, SERPER_API_KEY, OPENROUTER_API_KEY)
 
     if (validLink && validLink !== "NOT_FOUND") {
-      console.log(`[v0] ✓ Found valid apply link for ${job.company} ${job.title}: ${validLink}`)
+      console.log(`[GlobeAssist Server] ✓ Found valid apply link for ${job.company} ${job.title}: ${validLink}`)
       return NextResponse.json({ link: validLink })
     }
 
@@ -42,10 +42,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
     const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
       `"${job.company}" "${job.title}" job apply careers submit 2025 ${job.location}`,
     )}`
-    console.log(`[v0] Using fallback Google search for ${job.company}`)
+    console.log(`[GlobeAssist Server] Using fallback Google search for ${job.company}`)
     return NextResponse.json({ link: fallbackLink })
   } catch (error) {
-    console.error("[v0] Error fetching job apply link:", error)
+    console.error("[GlobeAssist Server] Error fetching job apply link:", error)
     return NextResponse.json({ error: "Failed to fetch apply link" }, { status: 500 })
   }
 }
@@ -62,7 +62,7 @@ async function findBestJobApplicationLink(job: JobData, serperApiKey: string, ll
     let allResults: any[] = []
 
     for (const query of searchQueries) {
-      console.log(`[v0] Searching Serper for: ${query}`)
+      console.log(`[GlobeAssist Server] Searching Serper for: ${query}`)
 
       try {
         const response = await fetch("https://google.serper.dev/search", {
@@ -82,12 +82,12 @@ async function findBestJobApplicationLink(job: JobData, serperApiKey: string, ll
           const data = await response.json()
           const results = data.organic || []
           allResults = [...allResults, ...results]
-          console.log(`[v0] Got ${results.length} results from Serper for query`)
+          console.log(`[GlobeAssist Server] Got ${results.length} results from Serper for query`)
         } else {
-          console.log(`[v0] Serper request failed with status: ${response.status}`)
+          console.log(`[GlobeAssist Server] Serper request failed with status: ${response.status}`)
         }
       } catch (fetchError) {
-        console.error(`[v0] Serper fetch error for query "${query}":`, fetchError)
+        console.error(`[GlobeAssist Server] Serper fetch error for query "${query}":`, fetchError)
       }
 
       // Delay to respect rate limits
@@ -95,14 +95,14 @@ async function findBestJobApplicationLink(job: JobData, serperApiKey: string, ll
     }
 
     if (allResults.length === 0) {
-      console.log(`[v0] No search results found for ${job.company} ${job.title}`)
+      console.log(`[GlobeAssist Server] No search results found for ${job.company} ${job.title}`)
       return "NOT_FOUND"
     }
 
     // Remove duplicates based on URL
     const uniqueResults = Array.from(new Map(allResults.map((item) => [item.link, item])).values()).slice(0, 15)
 
-    console.log(`[v0] Got ${uniqueResults.length} unique results, sending to Perplexity for analysis`)
+    console.log(`[GlobeAssist Server] Got ${uniqueResults.length} unique results, sending to Perplexity for analysis`)
 
     // Use Perplexity to analyze results and pick the best job posting link
     const resultsText = uniqueResults
@@ -147,14 +147,14 @@ YOUR RESPONSE (URL only):`
     })
 
     if (!llmResponse.ok) {
-      console.error(`[v0] LLM API error: ${llmResponse.status}`)
+      console.error(`[GlobeAssist Server] LLM API error: ${llmResponse.status}`)
       return "NOT_FOUND"
     }
 
     const llmData = await llmResponse.json()
     const selectedUrl = llmData.choices?.[0]?.message?.content?.trim() || ""
 
-    console.log(`[v0] Perplexity selected URL for ${job.company}: ${selectedUrl}`)
+    console.log(`[GlobeAssist Server] Perplexity selected URL for ${job.company}: ${selectedUrl}`)
 
     // Validate the URL
     if (selectedUrl === "NOT_FOUND" || !selectedUrl) {
@@ -168,14 +168,14 @@ YOUR RESPONSE (URL only):`
 
       // Final validation
       if (isValidJobApplicationUrl(cleanUrl)) {
-        console.log(`[v0] ✓ Valid job application URL confirmed: ${cleanUrl}`)
+        console.log(`[GlobeAssist Server] ✓ Valid job application URL confirmed: ${cleanUrl}`)
         return cleanUrl
       }
     }
 
     return "NOT_FOUND"
   } catch (error) {
-    console.error(`[v0] Error in findBestJobApplicationLink:`, error)
+    console.error(`[GlobeAssist Server] Error in findBestJobApplicationLink:`, error)
     return "NOT_FOUND"
   }
 }

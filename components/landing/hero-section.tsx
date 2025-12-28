@@ -244,7 +244,7 @@ function AIAgentShowcase() {
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
       >
-        <span className="text-xs font-semibold text-[#1e2a3e]">🌍 50+ Countries</span>
+        <span className="text-xs font-semibold text-[#1e2a3e]">🌍 25+ Countries</span>
       </motion.div>
 
       <motion.div
@@ -336,7 +336,7 @@ export function HeroSection() {
             >
               {[
                 { value: "500+", label: "Universities" },
-                { value: "50+", label: "Countries" },
+                { value: "25+", label: "Countries" },
                 { value: "10K+", label: "Scholarships" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center lg:text-left">

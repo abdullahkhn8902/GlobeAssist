@@ -64,12 +64,12 @@ export default function ProgramDetailPage() {
 
       if (data.success) {
         setDetails(data.data)
-        console.log("[v0] Program details loaded:", data.cached ? "from cache" : "fresh from API")
+        console.log("[GlobeAssist Server] Program details loaded:", data.cached ? "from cache" : "fresh from API")
       } else {
         setError(data.error || "Failed to load program details")
       }
     } catch (err) {
-      console.error("[v0] Error fetching program details:", err)
+      console.error("[GlobeAssist Server] Error fetching program details:", err)
       setError("Failed to connect to the server")
     } finally {
       setLoading(false)

@@ -97,7 +97,7 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     onFinish: async ({ isAborted }) => {
       if (isAborted) {
-        console.log("[v0] Chat stream aborted")
+        console.log("[GlobeAssist Server] Chat stream aborted")
       }
     },
     consumeSseStream: consumeStream,

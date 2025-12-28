@@ -104,7 +104,7 @@ export const MobileSidebar = ({ className, children, ...props }: React.Component
       >
         <div className="flex items-center gap-2">
           <div className="h-5 w-6 bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
-          <span className="text-white font-medium text-sm">StudyAbroad</span>
+          <span className="text-white font-medium text-sm">GlobeAssist</span>
         </div>
         <button
           type="button"

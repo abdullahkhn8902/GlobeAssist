@@ -47,9 +47,7 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
+    transition: { staggerChildren: 0.1 },
   },
 }
 
@@ -71,10 +69,10 @@ export function FeaturesSection() {
           <span className="inline-block px-4 py-1.5 rounded-full bg-[#1d293d]/5 text-[#1d293d] text-sm font-medium mb-4">
             Powerful Features
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1d293d] mb-4 text-balance">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1d293d] mb-4">
             Everything You Need to Go Global
           </h2>
-          <p className="text-[#1d293d]/60 max-w-2xl mx-auto text-lg text-pretty">
+          <p className="text-[#1d293d]/60 max-w-2xl mx-auto text-lg">
             Our AI agents work 24/7 to find the best opportunities for students and professionals seeking international
             success.
           </p>
@@ -87,80 +85,64 @@ export function FeaturesSection() {
           viewport={{ once: true }}
           className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
-          {features.map((feature, index) => (
-            <motion.div
-              key={feature.title}
-              variants={itemVariants}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              className={`relative group rounded-2xl p-8 cursor-pointer overflow-hidden ${
-                index % 2 === 0 ? "bg-[#e2e8f0]" : "bg-[#1d293d]"
-              }`}
-            >
-              {/* Background Animation */}
-              <motion.div
-                className={`absolute inset-0 ${index % 2 === 0 ? "bg-[#1d293d]" : "bg-[#e2e8f0]"}`}
-                initial={{ scaleY: 0 }}
-                whileHover={{ scaleY: 1 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                style={{ transformOrigin: "bottom" }}
-              />
+          {features.map((feature, index) => {
+            const isLight = index % 2 === 0
 
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-6">
-                  <motion.div
-                    whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.5 }}
-                    className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                      index % 2 === 0
-                        ? "bg-[#1d293d]/10 group-hover:bg-white/10"
-                        : "bg-white/10 group-hover:bg-[#1d293d]/10"
-                    }`}
-                  >
-                    <feature.icon
-                      className={`w-7 h-7 ${
-                        index % 2 === 0
-                          ? "text-[#1d293d] group-hover:text-white"
-                          : "text-white group-hover:text-[#1d293d]"
+            return (
+              <motion.div
+                key={feature.title}
+                variants={itemVariants}
+                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                className={`relative rounded-2xl p-8 cursor-pointer ${
+                  isLight ? "bg-[#e2e8f0]" : "bg-[#1d293d]"
+                }`}
+              >
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between mb-6">
+                    <motion.div
+                      whileHover={{ rotate: 360 }}
+                      transition={{ duration: 0.5 }}
+                      className={`w-14 h-14 rounded-xl flex items-center justify-center ${
+                        isLight ? "bg-[#1d293d]/10" : "bg-white/10"
+                      }`}
+                    >
+                      <feature.icon
+                        className={`w-7 h-7 ${isLight ? "text-[#1d293d]" : "text-white"}`}
+                      />
+                    </motion.div>
+
+                    <ArrowUpRight
+                      className={`w-5 h-5 opacity-0 transition-all group-hover:opacity-100 ${
+                        isLight ? "text-[#1d293d]" : "text-white"
                       }`}
                     />
-                  </motion.div>
-                  <ArrowUpRight
-                    className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1 group-hover:-translate-y-1 ${
-                      index % 2 === 0 ? "text-white" : "text-[#1d293d]"
+                  </div>
+
+                  <h3 className={`text-xl font-bold mb-2 ${isLight ? "text-[#1d293d]" : "text-white"}`}>
+                    {feature.title}
+                  </h3>
+
+                  <p
+                    className={`text-sm leading-relaxed mb-4 ${
+                      isLight ? "text-[#1d293d]/70" : "text-white/70"
                     }`}
-                  />
+                  >
+                    {feature.description}
+                  </p>
+
+                  <div
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      isLight
+                        ? "bg-[#1d293d]/10 text-[#1d293d]"
+                        : "bg-white/10 text-white"
+                    }`}
+                  >
+                    {feature.stats}
+                  </div>
                 </div>
-
-                <h3
-                  className={`text-xl font-bold mb-2 ${
-                    index % 2 === 0 ? "text-[#1d293d] group-hover:text-white" : "text-white group-hover:text-[#1d293d]"
-                  }`}
-                >
-                  {feature.title}
-                </h3>
-
-                <p
-                  className={`text-sm leading-relaxed mb-4 ${
-                    index % 2 === 0
-                      ? "text-[#1d293d]/70 group-hover:text-white/70"
-                      : "text-white/70 group-hover:text-[#1d293d]/70"
-                  }`}
-                >
-                  {feature.description}
-                </p>
-
-                <div
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                    index % 2 === 0
-                      ? "bg-[#1d293d]/10 text-[#1d293d] group-hover:bg-white/20 group-hover:text-white"
-                      : "bg-white/10 text-white group-hover:bg-[#1d293d]/10 group-hover:text-[#1d293d]"
-                  }`}
-                >
-                  {feature.stats}
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            )
+          })}
         </motion.div>
       </div>
     </section>

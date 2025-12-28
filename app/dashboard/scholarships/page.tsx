@@ -49,7 +49,7 @@ interface UserProfile {
 
 const FILTER_OPTIONS = {
   fundingType: ["Fully Funded", "Partial", "Fee waiver"],
-  location: ["USA", "UK", "Germany", "Canada", "Australia", "Europe", "China", "Japan", "Turkey", "Malaysia"],
+  location: ["USA", "UK", "Germany", "Australia", "Europe"],
   qualification: ["Undergraduate", "Masters", "PhD"],
 }
 

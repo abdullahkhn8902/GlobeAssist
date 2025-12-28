@@ -129,20 +129,7 @@ export default function SignUpPage() {
               </div>
             </Link>
 
-            <nav className="hidden sm:flex items-center gap-8">
-              <Link href="/" className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium">
-                Home
-              </Link>
-              <Link href="/about" className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium">
-                About
-              </Link>
-              <Link
-                href="/privacy"
-                className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium"
-              >
-                Privacy
-              </Link>
-            </nav>
+           
 
             <div className="flex items-center gap-3">
               <Link

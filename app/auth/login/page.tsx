@@ -85,20 +85,7 @@ export default function LoginPage() {
               </div>
             </Link>
 
-            <nav className="hidden sm:flex items-center gap-8">
-              <Link href="/" className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium">
-                Home
-              </Link>
-              <Link href="/about" className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium">
-                About
-              </Link>
-              <Link
-                href="/privacy"
-                className="text-sm text-[#1d293d] hover:text-[#0f172a] transition-colors font-medium"
-              >
-                Privacy
-              </Link>
-            </nav>
+           
 
             <div className="flex items-center gap-3">
               <Link
@@ -163,12 +150,7 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked)}
-                    className="text-[#1d293d]"
-                  />
-                  <label className="text-sm text-[#475569]">Remember me</label>
+                  
                 </div>
                 <Link href="/auth/forgot-password" className="text-sm text-[#1d293d] hover:underline font-medium">
                   Forgot password
