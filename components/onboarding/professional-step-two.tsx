@@ -12,6 +12,7 @@ import {
   getRecommendedCountriesForBudget,
   COUNTRY_BUDGET_DATA,
   getMinimumBudget,
+  normalizeCountryNameForBudget,
 } from "@/lib/budget-data"
 import { AlertCircle, CheckCircle2, Info } from "lucide-react"
 
@@ -31,16 +32,17 @@ export function ProfessionalStepTwo({ data, onChange, onNext, onPrev }: Professi
     ? getBudgetWarningMessage(data.preferredDestination, data.budgetMax, "professional")
     : null
 
+  const profileType = "professional"
+
   const affordableCountries = getRecommendedCountriesForBudget(data.budgetMax, "professional")
 
   const minimumBudget = getMinimumBudget("professional")
   const isBelowMinimum = data.budgetMax > 0 && data.budgetMax < minimumBudget
 
   const getCountryBudgetInfo = (countryName: string) => {
+    const normalizedCountryName = normalizeCountryNameForBudget(countryName)
     const countryData = COUNTRY_BUDGET_DATA.find(
-      (c) =>
-        c.country.toLowerCase() === countryName.toLowerCase() ||
-        (countryName === "United Arab Emirates" && c.country === "United Arab Emirates"),
+      (c) => c.country.toLowerCase() === normalizedCountryName.toLowerCase()
     )
     if (!countryData) return null
     return {
@@ -110,19 +112,21 @@ export function ProfessionalStepTwo({ data, onChange, onNext, onPrev }: Professi
           <SelectContent className="bg-white border border-gray-200 shadow-lg">
             {COUNTRIES.map((country) => {
               const budgetInfo = getCountryBudgetInfo(country)
-              const isAffordable =
-                affordableCountries.includes(country) ||
-                (country === "United Arab Emirates" && affordableCountries.includes("United Arab Emirates"))
+              const isAffordable = budgetInfo && data.budgetMax >= budgetInfo.min
 
               return (
-                <SelectItem key={country} value={country}>
+                <SelectItem
+                  key={country}
+                  value={country}
+                  disabled={data.budgetMax > 0 && !isAffordable}
+                >
                   <div className="flex items-center justify-between w-full gap-2">
-                    <span className={!isAffordable && data.budgetMax > 0 ? "text-muted-foreground" : ""}>
+                    <span className={data.budgetMax > 0 && !isAffordable ? "text-muted-foreground opacity-50" : ""}>
                       {country}
                     </span>
                     {budgetInfo && data.budgetMax > 0 && (
-                      <span className={`text-xs ${isAffordable ? "text-green-600" : "text-orange-500"}`}>
-                        {isAffordable ? "✓" : `Min: $${(budgetInfo.min / 1000).toFixed(1)}k`}
+                      <span className={`text-xs ${isAffordable ? "text-green-600" : "text-red-500"}`}>
+                        {isAffordable ? "✓ Affordable" : `Min: $${(budgetInfo.min / 1000).toFixed(1)}k`}
                       </span>
                     )}
                   </div>
