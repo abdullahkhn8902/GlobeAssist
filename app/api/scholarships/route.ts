@@ -99,7 +99,7 @@ export async function GET(request: Request) {
         const validScholarships = (cached.scholarships as Scholarship[]).filter(validateScholarship)
 
         if (validScholarships.length >= MIN_REQUIRED_SCHOLARSHIPS) {
-          console.log("[GlobeAssist Server] Returning validated cached scholarships for:", cacheKey)
+          console.log("[v0] Returning validated cached scholarships for:", cacheKey)
           return NextResponse.json({
             scholarships: validScholarships,
             cached: true,
@@ -113,16 +113,16 @@ export async function GET(request: Request) {
             appliedFilters: { locations: locationFilters, qualifications: qualificationFilters },
           })
         } else {
-          console.log("[GlobeAssist Server] Cache has incomplete scholarship data, clearing and regenerating")
+          console.log("[v0] Cache has incomplete scholarship data, clearing and regenerating")
           await supabase.from("scholarships_cache").delete().eq("cache_key", cacheKey)
         }
       }
     }
 
     if (keyword) {
-      console.log("[GlobeAssist Server] Performing keyword search for:", keyword)
+      console.log("[v0] Performing keyword search for:", keyword)
     } else {
-      console.log("[GlobeAssist Server] Fetching fresh scholarships from Sonar Pro for:", destinations, qualification)
+      console.log("[v0] Fetching fresh scholarships from Sonar Pro for:", destinations, qualification)
     }
 
     const scholarships = await fetchScholarshipsFromSonar(destinations, qualification, fields, "Pakistani")
@@ -145,7 +145,7 @@ export async function GET(request: Request) {
       })
     }
 
-    console.log("[GlobeAssist Server] Returning scholarships without pre-fetched links (will fetch on-demand)")
+    console.log("[v0] Returning scholarships without pre-fetched links (will fetch on-demand)")
 
     if (!keyword && validScholarships.length >= MIN_REQUIRED_SCHOLARSHIPS) {
       const { error: upsertError } = await supabase.from("scholarships_cache").upsert(
@@ -158,7 +158,7 @@ export async function GET(request: Request) {
       )
 
       if (upsertError) {
-        console.error("[GlobeAssist Server] Error caching scholarships:", upsertError)
+        console.error("[v0] Error caching scholarships:", upsertError)
       } else {
         const { data: verifyData } = await supabase
           .from("scholarships_cache")
@@ -167,7 +167,7 @@ export async function GET(request: Request) {
           .maybeSingle()
 
         if (verifyData) {
-          console.log("[GlobeAssist Server] Successfully cached scholarships")
+          console.log("[v0] Successfully cached scholarships")
         }
       }
     }
@@ -185,7 +185,7 @@ export async function GET(request: Request) {
       appliedFilters: { locations: locationFilters, qualifications: qualificationFilters },
     })
   } catch (error) {
-    console.error("[GlobeAssist Server] Error fetching scholarships:", error)
+    console.error("[v0] Error fetching scholarships:", error)
     return NextResponse.json({ error: "Failed to fetch scholarships. Please try again." }, { status: 500 })
   }
 }
@@ -199,7 +199,7 @@ async function fetchScholarshipsFromSonar(
   const apiKey = process.env.OPENROUTER_API_KEY_SONAR_SEARCH
 
   if (!apiKey) {
-    console.error("[GlobeAssist Server] Sonar API key not found")
+    console.error("[v0] Sonar API key not found")
     throw new Error("Search API not configured")
   }
 
@@ -239,14 +239,14 @@ Format:
             continue
           }
           const errorText = await response.text()
-          console.error("[GlobeAssist Server] Sonar API error:", response.status, errorText)
+          console.error("[v0] Sonar API error:", response.status, errorText)
           throw new Error(`Sonar API error: ${response.status}`)
         }
 
         const data = await response.json()
         const content = data.choices?.[0]?.message?.content || ""
 
-        console.log("[GlobeAssist Server] Sonar response received, length:", content.length)
+        console.log("[v0] Sonar response received, length:", content.length)
 
         let jsonString = ""
         const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -260,7 +260,7 @@ Format:
         }
 
         if (!jsonString) {
-          console.error("[GlobeAssist Server] Could not find JSON array in Sonar response")
+          console.error("[v0] Could not find JSON array in Sonar response")
           if (attempt < 2) {
             await new Promise((resolve) => setTimeout(resolve, 2000))
             continue
@@ -296,7 +296,7 @@ Format:
             return s.name && s.university && s.location && s.qualification
           })
 
-          console.log("[GlobeAssist Server] Successfully parsed", validScholarships.length, "scholarships from Sonar")
+          console.log("[v0] Successfully parsed", validScholarships.length, "scholarships from Sonar")
 
           return validScholarships.map((s: Scholarship, i: number) => ({
             ...s,
@@ -306,7 +306,7 @@ Format:
             subjects: Array.isArray(s.subjects) ? s.subjects : [],
           }))
         } catch (parseError: any) {
-          console.error("[GlobeAssist Server] JSON parse error:", parseError.message)
+          console.error("[v0] JSON parse error:", parseError.message)
 
           // Try to salvage scholarships from malformed JSON
           const validScholarships: Scholarship[] = []
@@ -336,7 +336,7 @@ Format:
           }
 
           if (validScholarships.length > 0) {
-            console.log("[GlobeAssist Server] Recovered", validScholarships.length, "scholarships from malformed JSON")
+            console.log("[v0] Recovered", validScholarships.length, "scholarships from malformed JSON")
             return validScholarships.map((s: Scholarship, i: number) => ({
               ...s,
               id: `sch_${i}_${Date.now()}`,
@@ -362,7 +362,7 @@ Format:
 
     throw lastError || new Error("Failed to fetch scholarships after retries")
   } catch (error: any) {
-    console.error("[GlobeAssist Server] Sonar fetch error:", error.message)
+    console.error("[v0] Sonar fetch error:", error.message)
     throw error
   }
 }

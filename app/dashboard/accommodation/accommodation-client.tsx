@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, MapPin, Star, ExternalLink, Search, Loader2, AlertCircle, Building2, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ShimmerLoader } from "@/components/dashboard/shimmer-loader"
+import { AccommodationLoader } from "@/components/loaders/accommodation-loader"
 
 interface AccommodationOption {
   id: string
@@ -37,7 +37,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
 
   useEffect(() => {
     if (initialCity && !hasSearched) {
-      console.log("[GlobeAssist Server] Auto-loading accommodations for city:", initialCity)
+      console.log("[v0] Auto-loading accommodations for city:", initialCity)
       fetchAccommodations(initialCity)
       setHasSearched(true)
     } else if (!initialCity) {
@@ -49,7 +49,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
     try {
       setLoading(true)
       setError(null)
-      console.log("[GlobeAssist Server] Fetching accommodations for:", cityName, "Country:", country)
+      console.log("[v0] Fetching accommodations for:", cityName, "Country:", country)
 
       const params = new URLSearchParams()
       params.set("city", cityName)
@@ -58,7 +58,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
       const response = await fetch(`/api/professional-accommodations?${params.toString()}`)
       const data = await response.json()
 
-      console.log("[GlobeAssist Server] Response:", data)
+      console.log("[v0] Response:", data)
 
       if (data.success) {
         setAccommodations(data.accommodations || [])
@@ -68,7 +68,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
         setError(data.error || "Failed to load accommodations")
       }
     } catch (err) {
-      console.error("[GlobeAssist Server] Error fetching accommodations:", err)
+      console.error("[v0] Error fetching accommodations:", err)
       setError("Failed to connect to server. Please try again.")
     } finally {
       setLoading(false)
@@ -133,13 +133,7 @@ export function AccommodationClient({ country, city: initialCity }: Accommodatio
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
         {/* Loading State */}
-        {loading && hasSearched && (
-          <ShimmerLoader
-            message={`Finding accommodations in ${searchCity || initialCity}...`}
-            subMessage="Searching real-time accommodation data"
-            type="cards"
-          />
-        )}
+        {loading && hasSearched && <AccommodationLoader city={searchCity || initialCity} />}
 
         {/* Error State */}
         {error && (

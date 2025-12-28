@@ -21,7 +21,7 @@ import {
   Briefcase,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ShimmerLoader } from "@/components/dashboard/shimmer-loader"
+import { VisaLoader } from "@/components/loaders/visa-loader"
 
 interface VisaRequirements {
   countryName: string
@@ -88,13 +88,7 @@ export default function ProfessionalVisaRequirementsPage() {
   }, [countryName])
 
   if (loading) {
-    return (
-      <ShimmerLoader
-        message="Loading work visa requirements..."
-        subMessage="Fetching latest information for professionals"
-        type="full"
-      />
-    )
+    return <VisaLoader countryName={countryName} type="work" />
   }
 
   if (error || !data) {

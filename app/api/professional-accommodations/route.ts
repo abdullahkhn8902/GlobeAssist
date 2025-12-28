@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     const cityName = city.split(",")[0].trim()
 
-    console.log(`[GlobeAssist Server] Generating accommodation links for ${cityName}, ${country}`)
+    console.log(`[v0] Generating accommodation links for ${cityName}, ${country}`)
 
     const bookingUrl = generateBookingUrl(cityName, country, checkin, checkout)
     const airbnbUrl = generateAirbnbUrl(cityName, country, checkin, checkout)
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       message: `Found accommodation options in ${cityName}, ${country}`,
     })
   } catch (error) {
-    console.error("[GlobeAssist Server] Error in professional-accommodations route:", error)
+    console.error("[v0] Error in professional-accommodations route:", error)
     const errorMessage = error instanceof Error ? error.message : "Failed to generate accommodation links"
     return NextResponse.json(
       {

@@ -102,7 +102,7 @@ export default function UniversityDetailPage() {
           setError(data.error || "Failed to load university details")
         }
       } catch (err) {
-        console.error("[GlobeAssist Server] Error fetching university details:", err)
+        console.error("[v0] Error fetching university details:", err)
         setError("Failed to connect to the server")
       } finally {
         setLoading(false)
@@ -115,7 +115,7 @@ export default function UniversityDetailPage() {
   }, [universityName, countryName])
 
   if (loading) {
-    return <UniversityShimmer />
+    return <UniversityShimmer universityName={universityName} />
   }
 
   if (error || !details) {

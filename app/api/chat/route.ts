@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   const { messages, userProfile }: { messages: UIMessage[]; userProfile: UserProfile | null } = await req.json()
 
   const openrouter = createOpenRouter({
-    apiKey: process.env.OPENROUTER_API_KEY,
+    apiKey: process.env.OpenRouter_GPT_LLM || process.env.OPENROUTER_API_KEY,
   })
 
   const systemPrompt = buildSystemPrompt(userProfile)
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     onFinish: async ({ isAborted }) => {
       if (isAborted) {
-        console.log("[GlobeAssist Server] Chat stream aborted")
+        console.log("[v0] Chat stream aborted")
       }
     },
     consumeSseStream: consumeStream,

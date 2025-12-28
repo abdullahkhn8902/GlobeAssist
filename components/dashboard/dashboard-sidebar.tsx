@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/aceternity-sidebar"
-import { Home, DollarSign, History, GraduationCap, LogOut, MessageCircle, UserCircle } from "lucide-react"
+import { Home, GraduationCap, LogOut, MessageCircle, UserCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -62,9 +62,11 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
   const [userName, setUserName] = useState<string>("User")
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function fetchUserProfile() {
+      setIsLoading(true)
       const supabase = createClient()
       const {
         data: { user },
@@ -83,6 +85,7 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
           setAvatarUrl(userProfile.avatar_url)
         }
       }
+      setIsLoading(false)
     }
 
     fetchUserProfile()
@@ -95,12 +98,12 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut()
       router.push("/auth/login")
     } catch (error) {
-      console.error("[GlobeAssist Server] Error signing out:", error)
+      console.error("[v0] Error signing out:", error)
       setIsSigningOut(false)
     }
   }
 
-  const links = profileType === "professional" ? professionalLinks : studentLinks
+  const links = isLoading ? [] : profileType === "professional" ? professionalLinks : studentLinks
 
   return (
     <div className="flex flex-col md:flex-row bg-slate-200 w-full min-h-screen md:h-screen md:overflow-hidden">
@@ -109,13 +112,21 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
             <Logo open={open} />
             <div className="mt-8 flex flex-col gap-2">
-              {links.map((link) => (
-                <SidebarLink
-                  key={link.href}
-                  link={link}
-                  className={cn("rounded-lg px-2 transition-colors", pathname === link.href && "bg-slate-700")}
-                />
-              ))}
+              {isLoading ? (
+                <div className="flex flex-col gap-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-10 bg-slate-700/50 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                links.map((link) => (
+                  <SidebarLink
+                    key={link.href}
+                    link={link}
+                    className={cn("rounded-lg px-2 transition-colors", pathname === link.href && "bg-slate-700")}
+                  />
+                ))
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-2">

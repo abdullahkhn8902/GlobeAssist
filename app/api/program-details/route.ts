@@ -42,12 +42,12 @@ async function findApplicationUrl(programName: string, universityName: string): 
     })
 
     if (!response.ok) {
-      console.error("[GlobeAssist Server] Serper API error:", response.status)
+      console.error("[v0] Serper API error:", response.status)
       return `https://www.google.com/search?q=${encodeURIComponent(`${programName} ${universityName} apply`)}`
     }
 
     const data = await response.json()
-    console.log("[GlobeAssist Server] Serper results for application URL:", data.organic?.length || 0)
+    console.log("[v0] Serper results for application URL:", data.organic?.length || 0)
 
     const universityDomain = universityName.toLowerCase().replace(/[^a-z]/g, "")
     for (const result of data.organic || []) {
@@ -56,7 +56,7 @@ async function findApplicationUrl(programName: string, universityName: string): 
         (link.includes(".edu") || link.includes(universityDomain)) &&
         (link.includes("apply") || link.includes("admission") || link.includes("program"))
       ) {
-        console.log("[GlobeAssist Server] Found official application URL:", result.link)
+        console.log("[v0] Found official application URL:", result.link)
         return result.link
       }
     }
@@ -71,7 +71,7 @@ async function findApplicationUrl(programName: string, universityName: string): 
       return data.organic[0].link
     }
   } catch (error) {
-    console.error("[GlobeAssist Server] Error fetching application URL:", error)
+    console.error("[v0] Error fetching application URL:", error)
   }
 
   return `https://www.google.com/search?q=${encodeURIComponent(`${programName} ${universityName} apply`)}`
@@ -101,7 +101,7 @@ async function getProgramFromUniversityCache(
       const programs = uniCache.programs as any[]
       const matchedProgram = programs.find((p) => p.name?.toLowerCase() === programName.toLowerCase())
       if (matchedProgram) {
-        console.log("[GlobeAssist Server] Found program in university cache:", matchedProgram.name)
+        console.log("[v0] Found program in university cache:", matchedProgram.name)
         return {
           qualification: matchedProgram.qualification || "Master's Degree",
           duration: matchedProgram.duration || "2 Year(s)",
@@ -112,7 +112,7 @@ async function getProgramFromUniversityCache(
       }
     }
   } catch (error) {
-    console.error("[GlobeAssist Server] Error reading university cache:", error)
+    console.error("[v0] Error reading university cache:", error)
   }
   return null
 }
@@ -128,7 +128,7 @@ async function fetchAdditionalProgramDetails(
   entryRequirements: string[]
 } | null> {
   if (!PERPLEXITY_API_KEY) {
-    console.error("[GlobeAssist Server] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
+    console.error("[v0] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
     return null
   }
 
@@ -150,7 +150,7 @@ async function fetchAdditionalProgramDetails(
 Return ONLY JSON with real 2024-2025 data.`
 
   try {
-    console.log(`[GlobeAssist Server] Calling Perplexity for additional details: ${programName}`)
+    console.log(`[v0] Calling Perplexity for additional details: ${programName}`)
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -168,7 +168,7 @@ Return ONLY JSON with real 2024-2025 data.`
     })
 
     if (!response.ok) {
-      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status}`)
+      console.error(`[v0] Perplexity API error: ${response.status}`)
       return null
     }
 
@@ -177,7 +177,7 @@ Return ONLY JSON with real 2024-2025 data.`
 
     if (!content) return null
 
-    console.log("[GlobeAssist Server] Perplexity response length:", content.length)
+    console.log("[v0] Perplexity response length:", content.length)
 
     let cleanedContent = content.trim()
     if (cleanedContent.startsWith("```json")) cleanedContent = cleanedContent.slice(7)
@@ -188,7 +188,7 @@ Return ONLY JSON with real 2024-2025 data.`
     if (jsonMatch) cleanedContent = jsonMatch[0]
 
     const parsed = JSON.parse(cleanedContent.trim())
-    console.log("[GlobeAssist Server] Parsed additional details successfully")
+    console.log("[v0] Parsed additional details successfully")
 
     return {
       location: parsed.location || `${countryName}`,
@@ -200,7 +200,7 @@ Return ONLY JSON with real 2024-2025 data.`
           : ["Contact university for requirements"],
     }
   } catch (error) {
-    console.error("[GlobeAssist Server] Error parsing Perplexity response:", error)
+    console.error("[v0] Error parsing Perplexity response:", error)
     return null
   }
 }
@@ -238,14 +238,14 @@ export async function GET(request: NextRequest) {
           !cached.aboutCourse.includes("Detailed information available")
 
         if (hasRealData) {
-          console.log("[GlobeAssist Server] Using valid cached program details")
+          console.log("[v0] Using valid cached program details")
           return NextResponse.json({ success: true, data: cached, cached: true })
         }
-        console.log("[GlobeAssist Server] Cache has placeholder data, fetching fresh...")
+        console.log("[v0] Cache has placeholder data, fetching fresh...")
       }
     }
 
-    console.log("[GlobeAssist Server] Fetching fresh program details")
+    console.log("[v0] Fetching fresh program details")
 
     const universityProgramData = await getProgramFromUniversityCache(
       supabase,
@@ -281,7 +281,7 @@ export async function GET(request: NextRequest) {
       applicationUrl,
     }
 
-    console.log("[GlobeAssist Server] Program details merged:", {
+    console.log("[v0] Program details merged:", {
       program: programDetails.programName,
       fees: programDetails.fees,
       duration: programDetails.duration,
@@ -300,12 +300,12 @@ export async function GET(request: NextRequest) {
         },
         { onConflict: "program_name,university_name" },
       )
-      console.log("[GlobeAssist Server] Cached merged program details")
+      console.log("[v0] Cached merged program details")
     }
 
     return NextResponse.json({ success: true, data: programDetails, cached: false })
   } catch (error) {
-    console.error("[GlobeAssist Server] Error fetching program details:", error)
+    console.error("[v0] Error fetching program details:", error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },

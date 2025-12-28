@@ -98,7 +98,7 @@ async function fetchJobsFromPerplexity(
   qualification: string
 ): Promise<JobData[] | null> {
   if (!PERPLEXITY_API_KEY) {
-    console.error("[GlobeAssist Server] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
+    console.error("[v0] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
     return null
   }
 
@@ -137,7 +137,7 @@ CRITICAL REQUIREMENTS:
 DO NOT include any explanations, only return the JSON array.`
 
   try {
-    console.log(`[GlobeAssist Server] Calling Perplexity Sonar Pro for ${jobTitle} jobs in ${countryName}`)
+    console.log(`[v0] Calling Perplexity Sonar Pro for ${jobTitle} jobs in ${countryName}`)
 
     const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -155,7 +155,7 @@ DO NOT include any explanations, only return the JSON array.`
     })
 
     if (!response.ok) {
-      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status}`)
+      console.error(`[v0] Perplexity API error: ${response.status}`)
       return null
     }
 
@@ -163,7 +163,7 @@ DO NOT include any explanations, only return the JSON array.`
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {
-      console.error(`[GlobeAssist Server] No content in Perplexity response for ${countryName}`)
+      console.error(`[v0] No content in Perplexity response for ${countryName}`)
       return null
     }
 
@@ -179,7 +179,7 @@ DO NOT include any explanations, only return the JSON array.`
     const jsonEndIndex = cleanedContent.lastIndexOf("]")
 
     if (jsonStartIndex === -1 || jsonEndIndex === -1 || jsonStartIndex >= jsonEndIndex) {
-      console.error(`[GlobeAssist Server] No valid JSON array found in Perplexity response for ${countryName}`)
+      console.error(`[v0] No valid JSON array found in Perplexity response for ${countryName}`)
       return null
     }
 
@@ -189,11 +189,11 @@ DO NOT include any explanations, only return the JSON array.`
     try {
       parsed = JSON.parse(jsonString)
     } catch (parseError) {
-      console.error(`[GlobeAssist Server] Failed to parse JSON for ${countryName}`)
+      console.error(`[v0] Failed to parse JSON for ${countryName}`)
       return null
     }
 
-    console.log(`[GlobeAssist Server] Successfully parsed Perplexity response for ${countryName}, found ${parsed.length} jobs`)
+    console.log(`[v0] Successfully parsed Perplexity response for ${countryName}, found ${parsed.length} jobs`)
 
     const jobs: JobData[] = parsed.map((job: any, index: number) => ({
       id: job.id || `job_${index}_${Date.now()}`,
@@ -215,7 +215,7 @@ DO NOT include any explanations, only return the JSON array.`
     return jobs.filter(validateJob)
 
   } catch (error) {
-    console.error(`[GlobeAssist Server] Error calling Perplexity for jobs: ${error instanceof Error ? error.message : String(error)}`)
+    console.error(`[v0] Error calling Perplexity for jobs: ${error instanceof Error ? error.message : String(error)}`)
     return null
   }
 }
@@ -323,7 +323,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { countryName } = resolvedParams
     const decodedCountryName = decodeURIComponent(countryName)
 
-    console.log("[GlobeAssist Server] GET /api/professional-jobs/" + decodedCountryName)
+    console.log("[v0] GET /api/professional-jobs/" + decodedCountryName)
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -333,7 +333,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Check cache first (similar to university API pattern)
-    console.log(`[GlobeAssist Server] Checking cache for ${decodedCountryName}`)
+    console.log(`[v0] Checking cache for ${decodedCountryName}`)
     const { data: cached } = await supabase
       .from("professional_jobs_cache")
       .select("*")
@@ -344,7 +344,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (cached?.jobs && Array.isArray(cached.jobs) && cached.jobs.length >= MIN_REQUIRED_JOBS) {
       const validJobs = cached.jobs.filter(validateJob)
       if (validJobs.length >= MIN_REQUIRED_JOBS) {
-        console.log(`[GlobeAssist Server] Returning cached data for ${decodedCountryName}`)
+        console.log(`[v0] Returning cached data for ${decodedCountryName}`)
         return NextResponse.json({
           success: true,
           country: cached.country_info,
@@ -364,7 +364,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const yearsOfExperience = profile?.years_of_experience || 3
     const qualification = profile?.highest_qualification || "Bachelor's Degree"
 
-    console.log(`[GlobeAssist Server] Fetching jobs for ${jobTitle} in ${decodedCountryName}`)
+    console.log(`[v0] Fetching jobs for ${jobTitle} in ${decodedCountryName}`)
 
     // Fetch jobs from Perplexity (similar to university API)
     const jobs = await fetchJobsFromPerplexity(
@@ -377,7 +377,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
 
     if (!jobs || jobs.length === 0) {
-      console.log(`[GlobeAssist Server] No jobs found for ${decodedCountryName}`)
+      console.log(`[v0] No jobs found for ${decodedCountryName}`)
       return NextResponse.json({
         success: false,
         error: "No jobs found. Please try again or adjust your search criteria.",
@@ -387,7 +387,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Add housing information
-    console.log(`[GlobeAssist Server] Adding housing information to ${jobs.length} jobs`)
+    console.log(`[v0] Adding housing information to ${jobs.length} jobs`)
     const jobsWithHousing = await Promise.all(
       jobs.map(async (job) => {
         try {
@@ -400,7 +400,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
 
     const validJobsWithHousing = jobsWithHousing.filter(validateJob)
-    console.log(`[GlobeAssist Server] Valid jobs with housing: ${validJobsWithHousing.length}`)
+    console.log(`[v0] Valid jobs with housing: ${validJobsWithHousing.length}`)
 
     // Get country info
     const countryInfo = getCountryInfo(decodedCountryName, industry)
@@ -412,7 +412,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Cache the results (similar to university API)
-    console.log(`[GlobeAssist Server] Caching data for ${decodedCountryName}`)
+    console.log(`[v0] Caching data for ${decodedCountryName}`)
     await supabase
       .from("professional_jobs_cache")
       .delete()
@@ -429,7 +429,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     if (insertError) {
-      console.error("[GlobeAssist Server] Error caching job data:", insertError)
+      console.error("[v0] Error caching job data:", insertError)
     }
 
     return NextResponse.json({
@@ -441,7 +441,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
 
   } catch (error) {
-    console.error("[GlobeAssist Server] Error in professional-jobs API:", error)
+    console.error("[v0] Error in professional-jobs API:", error)
     return NextResponse.json(
       {
         success: false,

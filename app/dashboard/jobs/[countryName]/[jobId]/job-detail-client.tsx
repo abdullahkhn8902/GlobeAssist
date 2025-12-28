@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ShimmerLoader } from "@/components/dashboard/shimmer-loader"
+import { JobDetailLoader } from "@/components/loaders/job-detail-loader"
 
 interface JobData {
   id: string
@@ -56,7 +56,7 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
           setError(data.error || "Failed to load job details")
         }
       } catch (err) {
-        console.error("[GlobeAssist Server] Error fetching job details:", err)
+        console.error("[v0] Error fetching job details:", err)
         setError("Failed to connect to server")
       } finally {
         setLoading(false)
@@ -67,9 +67,7 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
   }, [countryName, jobId])
 
   if (loading) {
-    return (
-      <ShimmerLoader message="Loading job details..." subMessage="Fetching comprehensive job information" type="full" />
-    )
+    return <JobDetailLoader />
   }
 
   if (error || !job) {

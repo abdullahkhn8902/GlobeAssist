@@ -17,13 +17,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid scholarship data" }, { status: 400 })
     }
 
-    console.log(`[GlobeAssist Server] Fetching application link on-demand for: ${scholarship.name}`)
+    console.log(`[v0] Fetching application link on-demand for: ${scholarship.name}`)
 
     const serperApiKey = process.env.SERPER_GOOGLE_SEARCH_API
     const llmApiKey = process.env.OPENROUTER_API_KEY
 
     if (!serperApiKey || !llmApiKey) {
-      console.log("[GlobeAssist Server] Missing required API keys for link fetching")
+      console.log("[v0] Missing required API keys for link fetching")
       return NextResponse.json({
         link: `https://www.google.com/search?q=${encodeURIComponent(
           `${scholarship.name} ${scholarship.university} official application form submit apply now 2026`,
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const validLink = await findBestApplicationLinkWithLLM(scholarship, serperApiKey, llmApiKey)
 
     if (validLink && validLink !== "NOT_FOUND") {
-      console.log(`[GlobeAssist Server] ✓ Found valid application link for ${scholarship.name}: ${validLink}`)
+      console.log(`[v0] ✓ Found valid application link for ${scholarship.name}: ${validLink}`)
       return NextResponse.json({ link: validLink })
     }
 
@@ -43,10 +43,10 @@ export async function POST(request: Request) {
     const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
       `${scholarship.name} ${scholarship.university} official application portal submit apply 2026`,
     )}`
-    console.log(`[GlobeAssist Server] Using fallback Google search for ${scholarship.name}`)
+    console.log(`[v0] Using fallback Google search for ${scholarship.name}`)
     return NextResponse.json({ link: fallbackLink })
   } catch (error) {
-    console.error("[GlobeAssist Server] Error fetching scholarship link:", error)
+    console.error("[v0] Error fetching scholarship link:", error)
     return NextResponse.json({ error: "Failed to fetch application link" }, { status: 500 })
   }
 }
@@ -67,7 +67,7 @@ async function findBestApplicationLinkWithLLM(
     let allResults: any[] = []
 
     for (const query of searchQueries) {
-      console.log(`[GlobeAssist Server] Searching Serper for: ${query}`)
+      console.log(`[v0] Searching Serper for: ${query}`)
 
       try {
         const response = await fetch("https://google.serper.dev/search", {
@@ -87,12 +87,12 @@ async function findBestApplicationLinkWithLLM(
           const data = await response.json()
           const results = data.organic || []
           allResults = [...allResults, ...results]
-          console.log(`[GlobeAssist Server] Got ${results.length} results from Serper`)
+          console.log(`[v0] Got ${results.length} results from Serper`)
         } else {
-          console.log(`[GlobeAssist Server] Serper request failed with status: ${response.status}`)
+          console.log(`[v0] Serper request failed with status: ${response.status}`)
         }
       } catch (fetchError) {
-        console.error(`[GlobeAssist Server] Serper fetch error for query "${query}":`, fetchError)
+        console.error(`[v0] Serper fetch error for query "${query}":`, fetchError)
       }
 
       // Delay to respect rate limits
@@ -100,14 +100,14 @@ async function findBestApplicationLinkWithLLM(
     }
 
     if (allResults.length === 0) {
-      console.log(`[GlobeAssist Server] No search results found for ${scholarship.name}`)
+      console.log(`[v0] No search results found for ${scholarship.name}`)
       return "NOT_FOUND"
     }
 
     // Remove duplicates based on URL
     const uniqueResults = Array.from(new Map(allResults.map((item) => [item.link, item])).values()).slice(0, 15)
 
-    console.log(`[GlobeAssist Server] Got ${uniqueResults.length} unique results, sending to LLM for analysis`)
+    console.log(`[v0] Got ${uniqueResults.length} unique results, sending to LLM for analysis`)
 
     // Use LLM to analyze results and pick the best application link
     const resultsText = uniqueResults
@@ -150,14 +150,14 @@ YOUR RESPONSE (URL only):`
     })
 
     if (!llmResponse.ok) {
-      console.error(`[GlobeAssist Server] LLM API error: ${llmResponse.status}`)
+      console.error(`[v0] LLM API error: ${llmResponse.status}`)
       return "NOT_FOUND"
     }
 
     const llmData = await llmResponse.json()
     const selectedUrl = llmData.choices?.[0]?.message?.content?.trim() || ""
 
-    console.log(`[GlobeAssist Server] LLM selected URL for ${scholarship.name}: ${selectedUrl}`)
+    console.log(`[v0] LLM selected URL for ${scholarship.name}: ${selectedUrl}`)
 
     // Validate the URL
     if (selectedUrl === "NOT_FOUND" || !selectedUrl) {
@@ -171,14 +171,14 @@ YOUR RESPONSE (URL only):`
 
       // Final validation
       if (isValidApplicationUrl(cleanUrl)) {
-        console.log(`[GlobeAssist Server] ✓ Valid application URL confirmed: ${cleanUrl}`)
+        console.log(`[v0] ✓ Valid application URL confirmed: ${cleanUrl}`)
         return cleanUrl
       }
     }
 
     return "NOT_FOUND"
   } catch (error) {
-    console.error(`[GlobeAssist Server] Error in findBestApplicationLinkWithLLM for ${scholarship.name}:`, error)
+    console.error(`[v0] Error in findBestApplicationLinkWithLLM for ${scholarship.name}:`, error)
     return "NOT_FOUND"
   }
 }
@@ -209,14 +209,14 @@ function isValidApplicationUrl(url: string): boolean {
   const urlLower = url.toLowerCase()
   for (const blocked of blacklist) {
     if (urlLower.includes(blocked)) {
-      console.log(`[GlobeAssist Server] Rejected blacklisted site: ${url}`)
+      console.log(`[v0] Rejected blacklisted site: ${url}`)
       return false
     }
   }
 
   // Must not be a Google search URL
   if (urlLower.includes("google.com/search")) {
-    console.log(`[GlobeAssist Server] Rejected Google search URL: ${url}`)
+    console.log(`[v0] Rejected Google search URL: ${url}`)
     return false
   }
 

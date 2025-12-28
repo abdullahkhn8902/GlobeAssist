@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Send, Loader2 } from "lucide-react"
+import { Send } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface UserProfile {
@@ -66,14 +66,14 @@ export default function ChatPage() {
   const lastSavedMessageCountRef = useRef(0)
 
   const chatOptions: any = {
-    transport: (new DefaultChatTransport({ api: "/api/chat" }) as unknown) as any,
+    transport: new DefaultChatTransport({ api: "/api/chat" }) as unknown as any,
     body: {
       userProfile,
       userId,
     },
     initialMessages: initialMessages.map((m) => ({
       id: m.id,
-      role: m.role,
+      role: m.role as "user" | "assistant",
       parts: [{ type: "text" as const, text: m.content }],
     })),
   }
@@ -93,7 +93,7 @@ export default function ChatPage() {
   function renderMarkdownToHtml(md: string) {
     if (!md) return ""
     let out = escapeHtml(md)
-    // Code blocks ```
+    // Code blocks \`\`\`
     out = out.replace(/```([\s\S]*?)```/g, (_m, code) => `<pre><code>${escapeHtml(code)}</code></pre>`)
     // Inline code
     out = out.replace(/`([^`]+)`/g, (_m, code) => `<code>${escapeHtml(code)}</code>`)
@@ -102,7 +102,7 @@ export default function ChatPage() {
     // Italic *text*
     out = out.replace(/\*([^*]+)\*/g, (_m, t) => `<em>${t}</em>`)
     // Links [text](url)
-    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
+    out = out.replace(/\[([^\]]+)\]$$([^)]+)$$/g, (_m, text, url) => {
       const safeUrl = escapeHtml(url)
       return `<a href="${safeUrl}" target="_blank" rel="noreferrer">${text}</a>`
     })
@@ -348,13 +348,24 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
-            {status === "streaming" && (
+            {(status === "streaming" || status === "submitted") && (
               <div className="flex justify-start">
                 <div className="bg-white text-slate-800 border border-slate-200 px-4 py-3 rounded-2xl">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.1s]" />
-                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex space-x-1">
+                      <div
+                        className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -366,7 +377,7 @@ export default function ChatPage() {
 
       {/* Bottom Input Area (when there are messages) */}
       {messages.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-[60px] p-4 bg-slate-200">
+        <div className="fixed bottom-0 left-0 right-0 lg:left-[60px] p-4 bg-slate-200 transition-all duration-300 z-10">
           <div className="max-w-3xl mx-auto">
             <form
               onSubmit={(e) => {
@@ -390,12 +401,25 @@ export default function ChatPage() {
               >
                 <Send className="w-4 h-4" />
               </button>
-              {status === "streaming" && (
+              {/* {(status === "streaming" || status === "submitted") && (
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
-                  <span className="text-sm text-slate-600">Thinking…</span>
+                  <div className="flex space-x-0.5">
+                    <div
+                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <div
+                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <div
+                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
+                  </div>
+                 
                 </div>
-              )}
+              )} */}
             </form>
           </div>
         </div>

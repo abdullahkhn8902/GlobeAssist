@@ -97,7 +97,7 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
           setError(data.error || "Failed to load jobs")
         }
       } catch (err) {
-        console.error("[GlobeAssist Server] Error fetching jobs:", err)
+        console.error("[v0] Error fetching jobs:", err)
         setError("Failed to connect to server")
       } finally {
         setLoading(false)
@@ -112,7 +112,7 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
   }
 
   if (loading) {
-    return <JobsShimmer />
+    return <JobsShimmer countryName={countryName} />
   }
 
   if (error) {

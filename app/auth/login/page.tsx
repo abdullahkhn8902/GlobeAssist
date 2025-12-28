@@ -38,12 +38,6 @@ export default function LoginPage() {
 
         if (errorMessage.includes("invalid login credentials") || errorMessage.includes("invalid_credentials")) {
           messageApi.error("Incorrect email or password. Please check your credentials and try again.")
-        } else if (errorMessage.includes("email not confirmed")) {
-          if (data?.user) {
-            router.push("/dashboard")
-            return
-          }
-          messageApi.warning("Please verify your email address to continue.")
         } else if (errorMessage.includes("too many requests") || errorMessage.includes("rate")) {
           messageApi.warning("Too many login attempts. Please wait a moment and try again.")
         } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
@@ -129,7 +123,6 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl p-8 shadow-xl">
             {/* Logo at top */}
-           
 
             <h1 className="text-2xl font-bold text-[#1d293d] text-center mb-1">Sign In</h1>
             <p className="text-[#64748b] text-center text-sm mb-8">Welcome back! Please enter your details</p>
@@ -170,7 +163,12 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                 
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked)}
+                    className="text-[#1d293d]"
+                  />
+                  <label className="text-sm text-[#475569]">Remember me</label>
                 </div>
                 <Link href="/auth/forgot-password" className="text-sm text-[#1d293d] hover:underline font-medium">
                   Forgot password

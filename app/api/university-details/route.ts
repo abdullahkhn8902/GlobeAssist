@@ -87,7 +87,7 @@ async function fetchUniversityImage(universityName: string): Promise<string> {
       return data.images[0].imageUrl
     }
   } catch (error) {
-    console.error(`[GlobeAssist Server] Error fetching university image:`, error)
+    console.error(`[v0] Error fetching university image:`, error)
   }
 
   return `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(universityName + " campus")}`
@@ -104,7 +104,7 @@ async function fetchUniversityDataFromPerplexity(
   programs: Program[]
 } | null> {
   if (!PERPLEXITY_API_KEY) {
-    console.error("[GlobeAssist Server] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
+    console.error("[v0] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
     return null
   }
 
@@ -135,7 +135,7 @@ REQUIREMENTS:
 - Return ONLY JSON`
 
   try {
-    console.log(`[GlobeAssist Server] Calling Perplexity Sonar Pro for ${universityName}`)
+    console.log(`[v0] Calling Perplexity Sonar Pro for ${universityName}`)
 
     const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -153,7 +153,7 @@ REQUIREMENTS:
     })
 
     if (!response.ok) {
-      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status}`)
+      console.error(`[v0] Perplexity API error: ${response.status}`)
       return null
     }
 
@@ -161,7 +161,7 @@ REQUIREMENTS:
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {
-      console.error(`[GlobeAssist Server] No content in Perplexity response for ${universityName}`)
+      console.error(`[v0] No content in Perplexity response for ${universityName}`)
       return null
     }
 
@@ -177,7 +177,7 @@ REQUIREMENTS:
     const jsonEndIndex = cleanedContent.lastIndexOf("}")
 
     if (jsonStartIndex === -1 || jsonEndIndex === -1 || jsonStartIndex >= jsonEndIndex) {
-      console.error(`[GlobeAssist Server] No valid JSON found in Perplexity response for ${universityName}`)
+      console.error(`[v0] No valid JSON found in Perplexity response for ${universityName}`)
       return null
     }
 
@@ -187,11 +187,11 @@ REQUIREMENTS:
     try {
       parsed = JSON.parse(jsonString)
     } catch (parseError) {
-      console.error(`[GlobeAssist Server] Failed to parse JSON for ${universityName}`)
+      console.error(`[v0] Failed to parse JSON for ${universityName}`)
       return null
     }
 
-    console.log(`[GlobeAssist Server] Successfully parsed Perplexity response for ${universityName}`)
+    console.log(`[v0] Successfully parsed Perplexity response for ${universityName}`)
 
     return {
       description: parsed.description || `World-class education at ${universityName}.`,
@@ -203,7 +203,7 @@ REQUIREMENTS:
       programs: Array.isArray(parsed.programs) ? parsed.programs : [],
     }
   } catch (error) {
-    console.error(`[GlobeAssist Server] Error calling Perplexity: ${error instanceof Error ? error.message : String(error)}`)
+    console.error(`[v0] Error calling Perplexity: ${error instanceof Error ? error.message : String(error)}`)
     return null
   }
 }
@@ -215,14 +215,14 @@ async function fetchUniversityDetails(universityName: string, countryName: strin
   ])
 
   if (!perplexityData) {
-    console.error(`[GlobeAssist Server] Failed to get Perplexity data for ${universityName}`)
+    console.error(`[v0] Failed to get Perplexity data for ${universityName}`)
     return null
   }
 
   const validPrograms = perplexityData.programs.filter(validateProgram)
 
   if (validPrograms.length < MIN_REQUIRED_PROGRAMS) {
-    console.error(`[GlobeAssist Server] Insufficient valid programs: ${validPrograms.length}`)
+    console.error(`[v0] Insufficient valid programs: ${validPrograms.length}`)
     return null
   }
 
@@ -257,7 +257,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log(`[GlobeAssist Server] Checking cache for ${universityName}`)
+    console.log(`[v0] Checking cache for ${universityName}`)
 
     const { data: cachedDetails } = await supabase
       .from("university_details_cache")
@@ -271,7 +271,7 @@ export async function GET(request: Request) {
       const validCachedPrograms = cachedPrograms.filter(validateProgram)
 
       if (validCachedPrograms.length >= MIN_REQUIRED_PROGRAMS) {
-        console.log(`[GlobeAssist Server] Returning validated cached data for ${universityName}`)
+        console.log(`[v0] Returning validated cached data for ${universityName}`)
         return NextResponse.json({
           success: true,
           cached: true,
@@ -287,7 +287,7 @@ export async function GET(request: Request) {
           },
         })
       } else {
-        console.log(`[GlobeAssist Server] Cache has incomplete program data (${validCachedPrograms.length}), regenerating`)
+        console.log(`[v0] Cache has incomplete program data (${validCachedPrograms.length}), regenerating`)
         await supabase
           .from("university_details_cache")
           .delete()
@@ -296,7 +296,7 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log(`[GlobeAssist Server] Fetching fresh data for ${universityName}`)
+    console.log(`[v0] Fetching fresh data for ${universityName}`)
     const universityDetails = await fetchUniversityDetails(universityName, countryName)
 
     if (!universityDetails) {
@@ -309,7 +309,7 @@ export async function GET(request: Request) {
       )
     }
 
-    console.log(`[GlobeAssist Server] Caching complete data for ${universityName}`)
+    console.log(`[v0] Caching complete data for ${universityName}`)
 
     // Delete existing cache entry
     await supabase
@@ -333,7 +333,7 @@ export async function GET(request: Request) {
     })
 
     if (insertError) {
-      console.error("[GlobeAssist Server] Error caching university details:", insertError)
+      console.error("[v0] Error caching university details:", insertError)
     } else {
       const { data: verifyData } = await supabase
         .from("university_details_cache")
@@ -343,7 +343,7 @@ export async function GET(request: Request) {
         .maybeSingle()
 
       if (verifyData) {
-        console.log("[GlobeAssist Server] Successfully cached university details")
+        console.log("[v0] Successfully cached university details")
       }
     }
 
@@ -353,7 +353,7 @@ export async function GET(request: Request) {
       data: universityDetails,
     })
   } catch (error) {
-    console.error("[GlobeAssist Server] Error in university details API:", error)
+    console.error("[v0] Error in university details API:", error)
     return NextResponse.json(
       {
         success: false,

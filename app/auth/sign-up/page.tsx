@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Globe, Eye, EyeOff, Mail, CheckCircle } from "lucide-react"
+import { Globe, Eye, EyeOff } from "lucide-react"
 import { message } from "antd"
 
 export default function SignUpPage() {
@@ -19,7 +19,6 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showRepeatPassword, setShowRepeatPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [showEmailModal, setShowEmailModal] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
   const router = useRouter()
 
@@ -54,7 +53,6 @@ export default function SignUpPage() {
         email: emailNormalized,
         password: passwordNormalized,
         options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/onboarding`,
           data: {
             full_name: name,
             profile_type: profileType,
@@ -77,40 +75,39 @@ export default function SignUpPage() {
       }
 
       if (data?.user) {
-        const upsertProfile = async () => {
-          const { error: profileError } = await supabase.from("user_profiles").upsert(
-            {
-              user_id: data.user!.id,
-              full_name: name,
-              email: email,
-              profile_type: profileType,
-              onboarding_completed: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" },
-          )
+        const { error: profileError } = await supabase.from("user_profiles").upsert(
+          {
+            user_id: data.user.id,
+            full_name: name,
+            email: email,
+            profile_type: profileType,
+            onboarding_completed: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        )
 
-          if (profileError) {
-            console.error("Error creating user profile:", profileError)
-            messageApi.error("Failed to create user profile. Please try again or contact support.")
-            return false
-          }
-
-          return true
-        }
-
-        if (data.session) {
-          const ok = await upsertProfile()
-          if (ok) {
-            messageApi.success("Account created successfully!")
-            router.push("/onboarding")
-          }
+        if (profileError) {
+          console.error("Error creating user profile:", profileError)
+          messageApi.error("Failed to create user profile. Please try again or contact support.")
+          setIsLoading(false)
           return
         }
 
-        // Show email confirmation modal
-        setShowEmailModal(true)
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: emailNormalized,
+          password: passwordNormalized,
+        })
+
+        if (signInError) {
+          messageApi.error("Account created but sign in failed. Please try logging in.")
+          router.push("/auth/login")
+          return
+        }
+
+        messageApi.success("Account created successfully!")
+        router.push("/onboarding")
       }
     } catch (error: unknown) {
       messageApi.error(error instanceof Error ? error.message : "An unexpected error occurred. Please try again.")
@@ -123,54 +120,6 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-[#e2e8f0] flex flex-col">
       {contextHolder}
 
-      {/* Email Confirmation Modal */}
-      {showEmailModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-300">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-[#e2e8f0] flex items-center justify-center">
-                <Mail className="w-10 h-10 text-[#1d293d]" />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <h2 className="text-xl font-bold text-[#1d293d]">Check Your Email</h2>
-            </div>
-
-            <p className="text-[#64748b] text-center mb-2">We've sent a confirmation link to</p>
-            <p className="text-[#1d293d] font-semibold text-center mb-6">{email}</p>
-
-            <p className="text-[#94a3b8] text-sm text-center mb-8">
-              Please click the link in your email to verify your account and continue with the onboarding process.
-            </p>
-
-            <div className="space-y-3">
-              <button
-                onClick={() => router.push("/auth/login")}
-                className="w-full h-12 bg-[#1d293d] text-white hover:bg-[#0f172a] rounded-xl font-semibold transition-all"
-              >
-                Go to Sign In
-              </button>
-              <button
-                onClick={() => setShowEmailModal(false)}
-                className="w-full h-12 border border-[#e2e8f0] text-[#64748b] hover:bg-[#f8fafc] rounded-xl font-medium transition-all"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="text-[#94a3b8] text-xs text-center mt-6">
-              Didn't receive the email? Check your spam folder or{" "}
-              <button onClick={handleSignUp} className="text-[#1d293d] font-medium hover:underline">
-                resend
-              </button>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
       <header className="bg-[#e2e8f0] border-b border-[#cbd5e1]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -213,13 +162,9 @@ export default function SignUpPage() {
         </div>
       </header>
 
-      {/* Main Content - Centered Form */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl p-8 shadow-xl">
-            {/* Logo at top */}
-            
-
             <h1 className="text-2xl font-bold text-[#1d293d] text-center mb-1">Create Account</h1>
             <p className="text-[#64748b] text-center text-sm mb-8">Let's get started with your journey</p>
 
