@@ -97,6 +97,80 @@ export default function ProfilePage() {
   const [cvFileName, setCvFileName] = useState<string | null>(null)
   const [cvParseError, setCvParseError] = useState<string | null>(null)
 
+  // Check if preferences have changed (budget, destination, CV for professionals)
+  const hasPreferencesChanged = useCallback(() => {
+    if (userProfile?.profile_type === "student" && studentProfile && originalStudentProfile) {
+      return (
+        studentProfile.preferred_destination !== originalStudentProfile.preferred_destination ||
+        studentProfile.budget_min !== originalStudentProfile.budget_min ||
+        studentProfile.budget_max !== originalStudentProfile.budget_max ||
+        studentProfile.degree_to_pursue !== originalStudentProfile.degree_to_pursue ||
+        studentProfile.apply_for_scholarships !== originalStudentProfile.apply_for_scholarships ||
+        JSON.stringify(studentProfile.fields_of_interest) !== JSON.stringify(originalStudentProfile.fields_of_interest)
+      )
+    }
+    if (userProfile?.profile_type === "professional" && professionalProfile && originalProfessionalProfile) {
+      return (
+        professionalProfile.preferred_destination !== originalProfessionalProfile.preferred_destination ||
+        professionalProfile.budget_min !== originalProfessionalProfile.budget_min ||
+        professionalProfile.budget_max !== originalProfessionalProfile.budget_max ||
+        professionalProfile.industry_field !== originalProfessionalProfile.industry_field ||
+        professionalProfile.years_of_experience !== originalProfessionalProfile.years_of_experience ||
+        professionalProfile.cv_file_url !== originalProfessionalProfile.cv_file_url
+      )
+    }
+    return false
+  }, [userProfile, studentProfile, originalStudentProfile, professionalProfile, originalProfessionalProfile])
+
+  // Clear cached recommendations when preferences change
+  const clearCachedRecommendations = async (userId: string, profileType: string) => {
+    const supabase = createClient()
+    
+    try {
+      if (profileType === "student") {
+        // Clear all student-related caches
+        const { error: recError } = await supabase
+          .from("country_recommendations")
+          .delete()
+          .eq("user_id", userId)
+        
+        const { error: scholarError } = await supabase
+          .from("scholarships_cache")
+          .delete()
+          .eq("user_id", userId)
+        
+        // Also clear any other student-related cache tables
+        const { error: timelineError } = await supabase
+          .from("timeline_recommendations")
+          .delete()
+          .eq("user_id", userId)
+        
+        console.log(`[Profile] Cleared student cache for user: ${userId}`)
+        
+      } else {
+        // Clear all professional-related caches
+        const { error: jobError } = await supabase
+          .from("job_recommendations")
+          .delete()
+          .eq("user_id", userId)
+        
+        const { error: jobsCacheError } = await supabase
+          .from("professional_jobs_cache")
+          .delete()
+          .eq("user_id", userId)
+        
+        const { error: visaError } = await supabase
+          .from("professional_visa_cache")
+          .delete()
+          .eq("user_id", userId)
+        
+        console.log(`[Profile] Cleared professional cache for user: ${userId}`)
+      }
+    } catch (error) {
+      console.error("[Profile] Error clearing cache:", error)
+    }
+  }
+
   // Load user data on mount
   useEffect(() => {
     async function loadProfile() {
@@ -178,42 +252,18 @@ export default function ProfilePage() {
     loadProfile()
   }, [])
 
-  // Check if preferences have changed (budget, destination, CV for professionals)
-  const hasPreferencesChanged = useCallback(() => {
-    if (userProfile?.profile_type === "student" && studentProfile && originalStudentProfile) {
-      return (
-        studentProfile.preferred_destination !== originalStudentProfile.preferred_destination ||
-        studentProfile.budget_min !== originalStudentProfile.budget_min ||
-        studentProfile.budget_max !== originalStudentProfile.budget_max ||
-        JSON.stringify(studentProfile.fields_of_interest) !== JSON.stringify(originalStudentProfile.fields_of_interest)
-      )
+  // Warn user about unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasPreferencesChanged()) {
+        e.preventDefault()
+        e.returnValue = "You have unsaved changes. Are you sure you want to leave?"
+      }
     }
-    if (userProfile?.profile_type === "professional" && professionalProfile && originalProfessionalProfile) {
-      return (
-        professionalProfile.preferred_destination !== originalProfessionalProfile.preferred_destination ||
-        professionalProfile.budget_min !== originalProfessionalProfile.budget_min ||
-        professionalProfile.budget_max !== originalProfessionalProfile.budget_max ||
-        professionalProfile.cv_file_url !== originalProfessionalProfile.cv_file_url
-      )
-    }
-    return false
-  }, [userProfile, studentProfile, originalStudentProfile, professionalProfile, originalProfessionalProfile])
 
-  // Clear cached recommendations when preferences change
-  const clearCachedRecommendations = async (userId: string, profileType: string) => {
-    const supabase = createClient()
-
-    if (profileType === "student") {
-      // Clear student-related caches
-      await supabase.from("country_recommendations").delete().eq("user_id", userId)
-      await supabase.from("scholarships_cache").delete().eq("user_id", userId)
-    } else {
-      // Clear professional-related caches
-      await supabase.from("job_recommendations").delete().eq("user_id", userId)
-      await supabase.from("professional_jobs_cache").delete().eq("user_id", userId)
-      await supabase.from("professional_visa_cache").delete().eq("user_id", userId)
-    }
-  }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [hasPreferencesChanged])
 
   // Handle avatar upload
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,8 +427,19 @@ export default function ProfilePage() {
 
         if (error) throw error
 
+        // Clear cache FIRST if preferences changed
+        if (preferencesChanged) {
+          await clearCachedRecommendations(user.id, userProfile.profile_type)
+          toast({
+            title: "Profile updated",
+            description: "New recommendations will be generated based on your updated preferences.",
+            duration: 5000,
+          })
+        }
+
         // Update original profile to reflect saved state
         setOriginalStudentProfile(JSON.parse(JSON.stringify(studentProfile)))
+        
       } else if (userProfile.profile_type === "professional" && professionalProfile) {
         const { error } = await supabase
           .from("professional_profiles")
@@ -399,24 +460,34 @@ export default function ProfilePage() {
 
         if (error) throw error
 
+        // Clear cache FIRST if preferences changed
+        if (preferencesChanged) {
+          await clearCachedRecommendations(user.id, userProfile.profile_type)
+          toast({
+            title: "Profile updated",
+            description: "New recommendations will be generated based on your updated preferences.",
+            duration: 5000,
+          })
+        }
+
         // Update original profile to reflect saved state
         setOriginalProfessionalProfile(JSON.parse(JSON.stringify(professionalProfile)))
       }
 
-      // Clear cached recommendations if preferences changed
-      if (preferencesChanged) {
-        await clearCachedRecommendations(user.id, userProfile.profile_type)
-        toast({
-          title: "Profile updated",
-          description:
-            "Your preferences have changed. New recommendations will be generated based on your updated profile.",
+      // Show success toast even if no preferences changed
+      if (!preferencesChanged) {
+        toast({ 
+          title: "Profile saved", 
+          description: "Your profile has been updated successfully" 
         })
-      } else {
-        toast({ title: "Profile saved", description: "Your profile has been updated successfully" })
       }
     } catch (error) {
       console.error("Save error:", error)
-      toast({ title: "Save failed", description: "Failed to save profile. Please try again.", variant: "destructive" })
+      toast({ 
+        title: "Save failed", 
+        description: "Failed to save profile. Please try again.", 
+        variant: "destructive" 
+      })
     } finally {
       setIsSaving(false)
     }

@@ -49,32 +49,38 @@ export function AgentLoader({ steps, title, variant = "default" }: AgentLoaderPr
         <div className="relative w-20 h-20 mx-auto mb-8">
           {/* Outer ring */}
           <motion.div
-            className="absolute inset-0 rounded-full border-2 border-teal-500/30"
+            className="absolute inset-0 rounded-full border-2 border-teal-500/30 z-30"
             animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
             transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
           />
           {/* Middle ring */}
           <motion.div
-            className="absolute inset-2 rounded-full border-2 border-teal-400/50"
+            className="absolute inset-2 rounded-full border-2 border-teal-400/50 z-30"
             animate={{ scale: [1, 1.1, 1], opacity: [0.7, 0.3, 0.7] }}
             transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut", delay: 0.2 }}
           />
-          {/* Core */}
+          {/* Subtle glow behind the favicon (no solid fill) */}
           <motion.div
-            className={`absolute inset-4 rounded-full ${pulseColorClass} shadow-lg shadow-teal-500/50`}
+            className="absolute inset-4 rounded-full bg-transparent z-10"
             animate={{
-              scale: [1, 1.05, 1],
               boxShadow: [
-                "0 10px 25px -5px rgba(20, 184, 166, 0.5)",
-                "0 20px 40px -5px rgba(20, 184, 166, 0.7)",
-                "0 10px 25px -5px rgba(20, 184, 166, 0.5)",
+                "0 8px 20px -8px rgba(20,184,166,0.35)",
+                "0 18px 36px -8px rgba(20,184,166,0.55)",
+                "0 8px 20px -8px rgba(20,184,166,0.35)",
               ],
             }}
             transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
           />
+
+          {/* Favicon centered inside the rings */}
+          <img
+            src="/favicon.png"
+            alt="favicon"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full object-cover z-20"
+          />
           {/* Spinning dots */}
           <motion.div
-            className="absolute inset-0"
+            className="absolute inset-0 z-25"
             animate={{ rotate: 360 }}
             transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
           >

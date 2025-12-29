@@ -1,105 +1,103 @@
-import { consumeStream, convertToModelMessages, streamText, type UIMessage, type LanguageModel } from "ai"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { NextResponse } from "next/server"
+import { OpenRouter } from "@openrouter/sdk"
 
 export const maxDuration = 30
 
-interface UserProfile {
-  profileType: "student" | "professional"
-  fullName: string
-  latestQualification?: string
-  universityName?: string
-  graduationYear?: number
-  gradeCgpa?: string
-  currentlyStudying?: boolean
-  degreeToPursue?: string
-  preferredDestination?: string
-  preferredYearOfIntake?: number
-  budgetMin?: number
-  budgetMax?: number
-  applyForScholarships?: boolean
-  fieldsOfInterest?: string[]
-  whyThisField?: string
-  currentJobTitle?: string
-  companyName?: string
-  yearsOfExperience?: number
-  highestQualification?: string
-  industryField?: string
-  cvParsedData?: Record<string, unknown>
-}
+// Create OpenRouter client
+const openrouter = new OpenRouter({
+  apiKey: process.env.OpenRouter_GPT_LLM || process.env.OpenRouter_GPT_LLM || "",
+})
 
-function buildSystemPrompt(userProfile: UserProfile | null): string {
-  const basePrompt = `You are a helpful AI assistant for GlobeAssist, a platform that helps people find global opportunities. 
-You provide personalized advice and information about studying abroad, working internationally, scholarships, visas, and accommodations.
-Be friendly, informative, and supportive. Keep your responses concise but helpful.`
+// Simple system prompt that works with free model
+const SYSTEM_PROMPT = `You are GlobeAssist AI, a helpful assistant for a platform that helps people find global opportunities. 
+You provide general advice about studying abroad, working internationally, scholarships, visas, and accommodations.
+Be friendly, informative, and supportive. Keep your responses concise but helpful.
 
-  if (!userProfile) {
-    return basePrompt
-  }
-
-  if (userProfile.profileType === "student") {
-    return `${basePrompt}
-
-You are currently helping a student named ${userProfile.fullName}. Here is their profile information to personalize your responses:
-
-- Latest Qualification: ${userProfile.latestQualification || "Not specified"}
-- University/Institution: ${userProfile.universityName || "Not specified"}
-- Graduation Year: ${userProfile.graduationYear || "Not specified"}
-- Grade/CGPA: ${userProfile.gradeCgpa || "Not specified"}
-- Currently Studying: ${userProfile.currentlyStudying ? "Yes" : "No"}
-- Degree to Pursue: ${userProfile.degreeToPursue || "Not specified"}
-- Preferred Destination Country: ${userProfile.preferredDestination || "Not specified"}
-- Preferred Year of Intake: ${userProfile.preferredYearOfIntake || "Not specified"}
-- Budget Range: $${userProfile.budgetMin || 0} - $${userProfile.budgetMax || 10000}
-- Interested in Scholarships: ${userProfile.applyForScholarships ? "Yes" : "No"}
-- Fields of Interest: ${userProfile.fieldsOfInterest?.join(", ") || "Not specified"}
-- Why This Field: ${userProfile.whyThisField || "Not specified"}
-
-Use this information to provide personalized recommendations for universities, programs, scholarships, and study abroad opportunities. 
-Focus on opportunities that match their qualifications, budget, and preferred destination.`
-  } else {
-    return `${basePrompt}
-
-You are currently helping a professional named ${userProfile.fullName}. Here is their profile information to personalize your responses:
-
-- Current Job Title: ${userProfile.currentJobTitle || "Not specified"}
-- Company: ${userProfile.companyName || "Not specified"}
-- Years of Experience: ${userProfile.yearsOfExperience || "Not specified"}
-- Highest Qualification: ${userProfile.highestQualification || "Not specified"}
-- Industry/Field: ${userProfile.industryField || "Not specified"}
-- Preferred Destination Country: ${userProfile.preferredDestination || "Not specified"}
-- Budget Range: $${userProfile.budgetMin || 0} - $${userProfile.budgetMax || 10000}
-${userProfile.cvParsedData ? `- CV Data Available: Yes (has detailed resume information)` : ""}
-
-Use this information to provide personalized recommendations for job opportunities, visa options, work permits, and relocation guidance.
-Focus on opportunities that match their experience level, industry, and preferred destination.`
-  }
-}
+IMPORTANT RULES:
+1. NEVER claim to have user profile data or specific personal information
+2. Provide general advice based on common knowledge
+3. If asked about specific user data, politely explain you can only provide general information
+4. Focus on factual information about countries, education systems, visa processes, etc.
+5. Keep responses under 300 words
+6. Format responses with clear paragraphs and bullet points when appropriate`
 
 export async function POST(req: Request) {
-  const { messages, userProfile }: { messages: UIMessage[]; userProfile: UserProfile | null } = await req.json()
+  try {
+    const { messages } = await req.json()
 
-  const openrouter = createOpenRouter({
-    apiKey: process.env.OpenRouter_GPT_LLM || process.env.OPENROUTER_API_KEY,
-  })
+    // Convert messages to OpenRouter format
+    const openrouterMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages.map((msg: any) => ({
+        role: msg.role === "assistant" ? "assistant" : "user",
+        content: msg.content || msg.parts?.[0]?.text || "",
+      })),
+    ]
 
-  const systemPrompt = buildSystemPrompt(userProfile)
-  const prompt = convertToModelMessages(messages)
+    // Get the last user message
+    const lastUserMessage = messages
+      .slice()
+      .reverse()
+      .find((msg: any) => msg.role === "user")
+    const query = lastUserMessage?.content || lastUserMessage?.parts?.[0]?.text || ""
 
-  const model = openrouter("openai/gpt-4o-mini") as unknown as LanguageModel
+    // Create streaming response
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Call OpenRouter API with streaming
+          const openrouterStream = await openrouter.chat.send({
+            model: "openai/gpt-oss-120b:free",
+            messages: openrouterMessages,
+            stream: true,
+            streamOptions: {
+              includeUsage: true,
+            },
+          })
 
-  const result = streamText({
-    model,
-    system: systemPrompt,
-    messages: prompt,
-    abortSignal: req.signal,
-  })
+          // Stream the response
+          for await (const chunk of openrouterStream) {
+            const content = chunk.choices[0]?.delta?.content
+            if (content) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: content })}\n\n`))
+            }
+          }
 
-  return result.toUIMessageStreamResponse({
-    onFinish: async ({ isAborted }) => {
-      if (isAborted) {
-        console.log("[GlobeAssist Server] Chat stream aborted")
-      }
-    },
-    consumeSseStream: consumeStream,
-  })
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+          controller.close()
+        } catch (error) {
+          console.error("[GlobeAssist Server] Chat error:", error)
+          
+          // Fallback response if OpenRouter fails
+          const fallbackResponse = `I'm here to help you with GlobeAssist! You can ask me about:
+- Study abroad opportunities in various countries
+- Visa requirements for different destinations
+- General information about universities and programs
+- Tips for preparing your applications
+- Budget planning for international education/work
+
+What would you like to know about today?`
+          
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: fallbackResponse })}\n\n`))
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    })
+  } catch (error) {
+    console.error("[GlobeAssist Server] Chat API error:", error)
+    return NextResponse.json(
+      { success: false, error: "Failed to process chat request" },
+      { status: 500 }
+    )
+  }
 }

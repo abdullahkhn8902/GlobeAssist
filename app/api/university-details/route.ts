@@ -96,6 +96,7 @@ async function fetchUniversityImage(universityName: string): Promise<string> {
 async function fetchUniversityDataFromPerplexity(
   universityName: string,
   countryName: string,
+  studentInterests?: string[],
 ): Promise<{
   description: string
   worldRanking: string
@@ -108,7 +109,9 @@ async function fetchUniversityDataFromPerplexity(
     return null
   }
 
-  const prompt = `Provide study abroad information for ${universityName} in ${countryName}. Return ONLY valid JSON:
+  const interestsText = studentInterests && studentInterests.length ? `Student interests: ${studentInterests.join(", ")}.` : "Student interests: Not specified.";
+
+  const prompt = `Provide study abroad information for ${universityName} in ${countryName}. ${interestsText} Return ONLY valid JSON:
 
 {
   "description": "Brief university description (max 150 chars)",
@@ -120,7 +123,7 @@ async function fetchUniversityDataFromPerplexity(
       "name": "Program Name",
       "qualification": "Masters Degree",
       "duration": "1.5 Year(s)",
-      "fees": "AUD 58976",
+      "fees": "AUD 58976", 
       "nextIntake": "24 July 2025",
       "entryScore": "6.5 IELTS"
     }
@@ -128,10 +131,11 @@ async function fetchUniversityDataFromPerplexity(
 }
 
 REQUIREMENTS:
-- List 9 popular international student programs
+- List 10-15 popular international student programs must be 100% relevant for this student and prioritize programs that match the student's interests above.
 - Use real program names and accurate fees
 - Application requirements should be realistic (typically 4 items)
 - Include academic requirements, English requirements, documents needed
+- Most Most Important the tuition fee must be 100% correct and each program must have different tuition fee and must be 100% correct
 - Return ONLY JSON`
 
   try {
@@ -208,9 +212,9 @@ REQUIREMENTS:
   }
 }
 
-async function fetchUniversityDetails(universityName: string, countryName: string): Promise<UniversityDetails | null> {
+async function fetchUniversityDetails(universityName: string, countryName: string, studentInterests?: string[]): Promise<UniversityDetails | null> {
   const [perplexityData, universityImageUrl] = await Promise.all([
-    fetchUniversityDataFromPerplexity(universityName, countryName),
+    fetchUniversityDataFromPerplexity(universityName, countryName, studentInterests),
     fetchUniversityImage(universityName),
   ])
 
@@ -297,7 +301,18 @@ export async function GET(request: Request) {
     }
 
     console.log(`[GlobeAssist Server] Fetching fresh data for ${universityName}`)
-    const universityDetails = await fetchUniversityDetails(universityName, countryName)
+    // Fetch student's fields_of_interest (if any) to personalize the LLM prompt
+    const { data: studentProfile } = await supabase
+      .from("student_profiles")
+      .select("fields_of_interest")
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    const studentInterests: string[] | undefined = Array.isArray(studentProfile?.fields_of_interest)
+      ? studentProfile.fields_of_interest
+      : undefined
+
+    const universityDetails = await fetchUniversityDetails(universityName, countryName, studentInterests)
 
     if (!universityDetails) {
       return NextResponse.json(

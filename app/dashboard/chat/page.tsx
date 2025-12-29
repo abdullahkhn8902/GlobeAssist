@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
 import { Send } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -65,21 +63,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const lastSavedMessageCountRef = useRef(0)
 
-  const chatOptions: any = {
-    transport: new DefaultChatTransport({ api: "/api/chat" }) as unknown as any,
-    body: {
-      userProfile,
-      userId,
-    },
-    initialMessages: initialMessages.map((m) => ({
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      parts: [{ type: "text" as const, text: m.content }],
-    })),
-  }
-
-  const { messages, sendMessage, status, setMessages } = useChat(chatOptions)
-
   // Simple markdown -> HTML renderer (safe-ish): escape HTML then convert basic markdown
   function escapeHtml(unsafe: string) {
     return unsafe
@@ -102,7 +85,7 @@ export default function ChatPage() {
     // Italic *text*
     out = out.replace(/\*([^*]+)\*/g, (_m, t) => `<em>${t}</em>`)
     // Links [text](url)
-    out = out.replace(/\[([^\]]+)\]$$([^)]+)$$/g, (_m, text, url) => {
+    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
       const safeUrl = escapeHtml(url)
       return `<a href="${safeUrl}" target="_blank" rel="noreferrer">${text}</a>`
     })
@@ -145,6 +128,18 @@ export default function ChatPage() {
       content,
     })
   }, [])
+
+  // Local chat state and streaming implementation (replaces useChat)
+  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant" | "system"; content: string }>>(
+    initialMessages.map((m) => ({ id: m.id, role: m.role, content: m.content }))
+  )
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Keep messages in sync when initialMessages are loaded from DB
+  useEffect(() => {
+    setMessages(initialMessages.map((m) => ({ id: m.id, role: m.role, content: m.content })))
+  }, [initialMessages])
 
   useEffect(() => {
     async function fetchUserProfile() {
@@ -231,33 +226,108 @@ export default function ChatPage() {
     fetchUserProfile()
   }, [loadStoredMessages])
 
+  // Save user messages to DB
   useEffect(() => {
     if (!userId || messages.length === 0) return
 
     const newMessages = messages.slice(lastSavedMessageCountRef.current)
-
-    newMessages.forEach((message) => {
-      const content = message.parts
-        .filter((part): part is { type: "text"; text: string } => part.type === "text")
-        .map((part) => part.text)
-        .join("")
-
-      if (content && message.role !== "system") {
-        saveMessageToDb(userId, message.role as "user" | "assistant", content)
+    
+    newMessages.forEach((message: any) => {
+      if (message.content && message.role === "user") {
+        saveMessageToDb(userId, "user", message.content)
       }
     })
 
     lastSavedMessageCountRef.current = messages.length
   }, [messages, userId, saveMessageToDb])
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = (text: string) => {
-    if (!text.trim() || status !== "ready") return
-    sendMessage({ text })
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return
+
+    const userMsg = { id: crypto?.randomUUID?.() ?? `${Date.now()}`, role: "user" as const, content: text }
+
+    // Append user message locally
+    setMessages((m) => [...m, userMsg])
+
+    // user message will be saved by the existing effect that persists new user messages
+
     setInput("")
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Send full conversation to the server which returns an SSE stream
+      const allMessagesForApi = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }))
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: allMessagesForApi }),
+      })
+
+      if (!res.ok || !res.body) {
+        throw new Error('Chat API request failed')
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let assistantId = crypto?.randomUUID?.() ?? `assistant-${Date.now()}`
+      let assistantText = ''
+
+      // Add an empty assistant message placeholder so UI can show streaming text
+      setMessages((m) => [...m, { id: assistantId, role: 'assistant', content: '' }])
+
+      const parseChunk = (chunkStr: string) => {
+        // SSE messages are prefixed with "data: " and separated by double newlines
+        const parts = chunkStr.split('\n\n')
+        for (const part of parts) {
+          if (!part.trim()) continue
+          const line = part.split('\n').find((l) => l.startsWith('data:'))
+          if (!line) continue
+          const payload = line.replace(/^data: ?/, '')
+          if (payload === '[DONE]') return 'DONE'
+          try {
+            const parsed = JSON.parse(payload)
+            if (parsed?.text) {
+              assistantText += parsed.text
+              // update placeholder message
+              setMessages((prev) => {
+                const copy = [...prev]
+                const idx = copy.findIndex((x) => x.id === assistantId)
+                if (idx !== -1) copy[idx] = { ...copy[idx], content: assistantText }
+                return copy
+              })
+            }
+          } catch (e) {
+            // ignore JSON parse errors for partial chunks
+          }
+        }
+        return null
+      }
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        const result = parseChunk(chunk)
+        if (result === 'DONE') break
+      }
+
+      // Save assistant final message to DB
+      if (userId) {
+        const assistantFinalContent = assistantText
+        await saveMessageToDb(userId, 'assistant', assistantFinalContent)
+      }
+    } catch (err: any) {
+      setError(err)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -278,9 +348,9 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen bg-slate-200">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4">
-        {messages.length === 0 ? (
+        {messages.length === 0 || (messages.length === 1 && messages[0].role === "system") ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <h1 className="text-2xl font-bold text-slate-800 mb-8">How can we help ?</h1>
+            <h1 className="text-2xl font-bold text-slate-800 mb-8">How can we help?</h1>
 
             {/* Suggestion Pills */}
             <div className="flex flex-wrap justify-center gap-3 mb-8 max-w-2xl">
@@ -310,11 +380,11 @@ export default function ChatPage() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask anything"
                   className="w-full px-4 py-3 pr-12 text-slate-700 bg-white border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                  disabled={status !== "ready"}
+                  disabled={isLoading}
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || status !== "ready"}
+                  disabled={!input.trim() || isLoading}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />
@@ -324,31 +394,25 @@ export default function ChatPage() {
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-4 pb-32">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[80%] px-4 py-3 rounded-2xl ${
-                    message.role === "user"
-                      ? "bg-slate-800 text-white"
-                      : "bg-white text-slate-800 border border-slate-200"
-                  }`}
-                >
-                  {message.parts.map((part, index) => {
-                    if (part.type === "text") {
-                      return (
-                        <div
-                          key={index}
-                          className="whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(part.text) }}
-                        />
-                      )
-                    }
-                    return null
-                  })}
+            {messages
+              .filter((message: any) => message.role !== "system")
+              .map((message: any) => (
+                <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+                      message.role === "user"
+                        ? "bg-slate-800 text-white"
+                        : "bg-white text-slate-800 border border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className="whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(message.content || "") }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-            {(status === "streaming" || status === "submitted") && (
+              ))}
+            {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-white text-slate-800 border border-slate-200 px-4 py-3 rounded-2xl">
                   <div className="flex items-center gap-3">
@@ -370,13 +434,20 @@ export default function ChatPage() {
                 </div>
               </div>
             )}
+            {error && (
+              <div className="flex justify-start">
+                <div className="bg-red-50 text-red-800 border border-red-200 px-4 py-3 rounded-2xl">
+                  <p className="text-sm">Error: {error.message}</p>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
       {/* Bottom Input Area (when there are messages) */}
-      {messages.length > 0 && (
+      {messages.length > 0 && messages.some((m: any) => m.role !== "system") && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-[60px] p-4 bg-slate-200 transition-all duration-300 z-10">
           <div className="max-w-3xl mx-auto">
             <form
@@ -392,34 +463,15 @@ export default function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask anything"
                 className="w-full px-4 py-3 pr-12 text-slate-700 bg-white border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                disabled={status !== "ready"}
+                disabled={isLoading}
               />
               <button
                 type="submit"
-                disabled={!input.trim() || status !== "ready"}
+                disabled={!input.trim() || isLoading}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
-              {/* {(status === "streaming" || status === "submitted") && (
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <div className="flex space-x-0.5">
-                    <div
-                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
-                      style={{ animationDelay: "0ms" }}
-                    />
-                    <div
-                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
-                      style={{ animationDelay: "150ms" }}
-                    />
-                    <div
-                      className="w-1.5 h-1.5 bg-slate-600 rounded-full animate-bounce"
-                      style={{ animationDelay: "300ms" }}
-                    />
-                  </div>
-                 
-                </div>
-              )} */}
             </form>
           </div>
         </div>
