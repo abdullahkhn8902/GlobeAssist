@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     console.log(`[GlobeAssist Server] Fetching application link on-demand for: ${scholarship.name}`)
 
     const serperApiKey = process.env.SERPER_GOOGLE_SEARCH_API
-    const llmApiKey = process.env.OPENROUTER_API_KEY
+    const llmApiKey = process.env.OpenRouter_GPT_LLM
 
     if (!serperApiKey || !llmApiKey) {
       console.log("[GlobeAssist Server] Missing required API keys for link fetching")
@@ -88,6 +88,21 @@ async function findBestApplicationLinkWithLLM(
           const results = data.organic || []
           allResults = [...allResults, ...results]
           console.log(`[GlobeAssist Server] Got ${results.length} results from Serper`)
+          // Quick-scan Serper results and return immediately if we find
+          // a likely official application link (speeds up response time)
+          for (const r of results) {
+            const url = r.link
+            if (!url) continue
+            // Basic validation
+            if (!isValidApplicationUrl(url)) continue
+
+            const combined = `${r.title || ""} ${r.snippet || ""} ${url}`.toLowerCase()
+            const hasApplyKeywords = /apply|application|portal|submit|form/.test(combined)
+            if (hasApplyKeywords) {
+              console.log(`[GlobeAssist Server] Quick-valid link found in Serper results: ${url}`)
+              return url
+            }
+          }
         } else {
           console.log(`[GlobeAssist Server] Serper request failed with status: ${response.status}`)
         }
@@ -142,7 +157,7 @@ YOUR RESPONSE (URL only):`
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-  model: "openai/gpt-oss-120b:free",
+    model: "openai/gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 300,
         temperature: 0.1,

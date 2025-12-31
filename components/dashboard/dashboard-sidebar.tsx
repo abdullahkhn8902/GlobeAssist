@@ -9,6 +9,7 @@ import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/aceternity-si
 import { Home, GraduationCap, LogOut, MessageCircle, UserCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import Image from "next/image"
+import GLobeImage from "@/public/Favicon.png"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 
@@ -175,15 +176,21 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
 const Logo = ({ open }: { open: boolean }) => {
   return (
     <Link href="/dashboard" className="font-normal flex space-x-2 items-center text-sm text-white py-1 relative z-20">
-      <div className="h-5 w-6 bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0" />
+      <Image
+        src={GLobeImage}
+        alt="GlobeAssist favicon"
+        width={24}
+        height={20}
+        className="h-10 w-7 rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm shrink-0 object-cover"
+      />
       <motion.span
         animate={{
           display: open ? "inline-block" : "none",
           opacity: open ? 1 : 0,
         }}
-        className="font-medium text-white whitespace-pre"
+        className="font-bold text-white whitespace-pre text-2xl"
       >
-        StudyAbroad
+        GlobeAssist
       </motion.span>
     </Link>
   )

@@ -160,7 +160,7 @@ export default function CountryDetailPage() {
 
       {/* Right Section - Country Info (Fixed on desktop, first on mobile) */}
       <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 p-3 md:p-4 lg:py-6 lg:pr-6 lg:pl-0 order-1 lg:order-2">
-        <div className="bg-slate-800 rounded-xl lg:rounded-2xl overflow-hidden text-white lg:h-full flex flex-col">
+        <div className="bg-white rounded-xl lg:rounded-2xl overflow-hidden shadow-lg  text-white lg:h-full flex flex-col">
           {/* Mobile Back Button */}
           <button
             onClick={() => router.back()}
@@ -183,14 +183,14 @@ export default function CountryDetailPage() {
 
           {/* Country Info - compact, no scroll needed */}
           <div className="p-4 lg:p-5 flex flex-col flex-1 gap-5">
-            <h1 className="text-xl md:text-3xl font-bold mb-1 lg:mb-2">{details.countryName}</h1>
-            <p className="text-slate-300 text-sm md:text-sm leading-relaxed mb-4 lg:mb-4 line-clamp-2 lg:line-clamp-3">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800">{details.countryName}</h1>
+            <p className="text-slate-700 text-sm md:text-sm leading-relaxed  line-clamp-2 lg:line-clamp-3">
               {details.description}
             </p>
 
             {/* Popular Scholarships - Only show first 3 */}
-            <div className="mb-3 lg:mb-4">
-              <h2 className="text-lg lg:text-2xl font-bold mb-1.5 lg:mb-2">Popular Scholarships</h2>
+            <div className="mb-3 ">
+              <h2 className="text-lg lg:text-2xl font-bold mb-1.5 text-slate-800">Popular Scholarships</h2>
               <ul className="space-y-2 lg:space-y-1.5">
                 {details.popularScholarships.slice(0, 3).map((scholarship, index) => (
                   <li key={index}>
@@ -210,8 +210,8 @@ export default function CountryDetailPage() {
 
             {/* Other Information */}
             <div className="mb-3 lg:mb-4">
-              <h2 className="text-base lg:text-2xl font-bold mb-1.5 lg:mb-2">Other Information</h2>
-              <ul className="space-y-1.5 lg:space-y-2">
+              <h2 className="text-base lg:text-2xl font-bold mb-1.5 text-slate-800 ">Other Information</h2>
+              <ul className="space-y-1.5 lg:space-y-2 text-slate-800">
                 <li className="flex items-center gap-2 lg:gap-3 text-xs lg:text-sm">
                   <Clock className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-400 flex-shrink-0" />
                   <span>Visa Processing: {details.visaProcessingTime}</span>
@@ -230,7 +230,7 @@ export default function CountryDetailPage() {
             <div className="mt-auto">
               <Button
                 onClick={() => router.push(`/dashboard/country/${encodeURIComponent(countryName)}/visa-requirements`)}
-                className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 font-semibold py-2 lg:py-3 rounded-lg lg:rounded-xl border border-teal-500/30 text-xs lg:text-sm"
+                className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-slate-700 font-semibold py-2 lg:py-3 rounded-lg lg:rounded-xl border border-teal-500/30 text-xs lg:text-sm"
               >
                 Visa Requirements
               </Button>

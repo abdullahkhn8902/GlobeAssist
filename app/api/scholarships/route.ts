@@ -206,7 +206,7 @@ async function fetchScholarshipsFromSonar(
   const prompt = `Find 15 REAL scholarships for ${nationality} students how have ${qualification} find scholarship for further studies in ${destinations}, fields: ${fields}.
 
 REQUIREMENTS:
-- Deadlines MUST be in 2026 or Rolling (no past dates)
+- Deadlines MUST be in 2026  (no past dates)
 - Real scholarships only (Fulbright, Chevening, DAAD, Commonwealth, Erasmus, etc.)
 - Include scholarship name, university, country, degree level, award value, deadline, funding type
 

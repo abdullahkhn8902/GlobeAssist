@@ -55,7 +55,7 @@ Return JSON only:
     {"step": 2, "title": "step title", "description": "brief description"}
   ],
   "whereToApply": [
-    {"name": "Embassy/VFS name", "address": "address in Pakistan", "website": "url", "phone": "number"}
+    {"name": "Embassy name", "address": "address in Pakistan", "website": "url", "phone": "number"}
   ],
   "importantTips": ["tip1", "tip2", "tip3"],
   "processingCenters": ["city1", "city2"]

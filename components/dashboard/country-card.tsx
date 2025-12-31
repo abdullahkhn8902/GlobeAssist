@@ -29,7 +29,7 @@ export function CountryCard({ name, imageUrl, universities, costOfLivingMin, cos
   return (
     <div
       onClick={handleClick}
-      className="bg-slate-700 rounded-xl md:rounded-2xl overflow-hidden border-2 border-slate-600 hover:border-slate-500 transition-all duration-300 cursor-pointer group"
+      className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group"
     >
       <div className="relative h-32 sm:h-36 md:h-40 overflow-hidden">
         <Image
@@ -41,12 +41,12 @@ export function CountryCard({ name, imageUrl, universities, costOfLivingMin, cos
         />
       </div>
       <div className="p-3 md:p-4">
-        <h3 className="text-white font-semibold text-base md:text-lg mb-2 md:mb-3">{name}</h3>
-        <div className="flex items-center gap-2 text-slate-300 text-xs md:text-sm mb-1.5 md:mb-2">
+        <h3 className="text-slate-700 font-semibold text-base md:text-lg mb-2 md:mb-3">{name}</h3>
+        <div className="flex items-center gap-2 text-slate-500 text-xs md:text-sm mb-1.5 md:mb-2">
           <Building2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
           <span>{universities} Universities</span>
         </div>
-        <div className="flex items-center gap-2 text-slate-300 text-xs md:text-sm">
+        <div className="flex items-center gap-2 text-slate-500 text-xs md:text-sm">
           <DollarSign className="w-3.5 h-3.5 md:w-4 md:h-4" />
           <span>
             Cost of living: {formatCost(costOfLivingMin)}–{formatCost(costOfLivingMax)}

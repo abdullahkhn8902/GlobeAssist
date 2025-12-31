@@ -45,28 +45,28 @@ function ProgramCard({
 
   return (
     <div
-      className="bg-slate-700 rounded-2xl p-5 border-2 border-slate-600 hover:border-slate-500 transition-all duration-300 cursor-pointer"
+      className="bg-white rounded-2xl p-5 shadow-lg hover:border-slate-500 transition-all duration-300 cursor-pointer"
       onClick={handleClick}
     >
-      <h3 className="text-white font-semibold text-base mb-4 line-clamp-2 min-h-[3rem]">{program.name}</h3>
-      <div className="space-y-2.5">
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
+      <h3 className="text-slate-800 font-bold text-base mb-4 line-clamp-2 min-h-[3rem]">{program.name}</h3>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
           <GraduationCap className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>Qualification : {program.qualification}</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
           <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>Duration : {program.duration}</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
           <DollarSign className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>Fees : {program.fees}</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
           <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>Next intake : {program.nextIntake}</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
           <Award className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>Entry Score : {program.entryScore}</span>
         </div>
@@ -177,8 +177,8 @@ export default function UniversityDetailPage() {
       </div>
 
       {/* Right Section - University Info (Fixed on desktop, first on mobile) */}
-      <div className="w-full lg:w-[360px] xl:w-[400px] flex-shrink-0 p-3 md:p-4 lg:py-6 lg:pr-6 lg:pl-0 order-1 lg:order-2">
-        <div className="bg-slate-800 rounded-xl lg:rounded-2xl overflow-hidden border border-slate-700 lg:h-full flex flex-col">
+      <div className="w-full lg:w-[360px]  xl:w-[400px] flex-shrink-0 p-3 md:p-4 lg:py-6 lg:pr-6 lg:pl-0 order-1 lg:order-2">
+        <div className="bg-white rounded-xl lg:rounded-2xl overflow-hidden shadow-xl   lg:h-full flex flex-col">
           {/* Mobile Back Button */}
           <button
             onClick={() => router.back()}
@@ -205,33 +205,33 @@ export default function UniversityDetailPage() {
 
           {/* University Info - compact */}
           <div className="p-3 md:p-4 lg:p-5 flex-1 flex flex-col">
-            <h1 className="text-lg lg:text-3xl font-bold text-white mb-1 line-clamp-1 mb-5">
+            <h1 className="text-lg lg:text-2xl font-bold text-slate-700 mb-1 line-clamp-1 mb-5">
               {details.universityName}
             </h1>
-            <p className="text-slate-300 text-sm md:text-sm leading-relaxed mb-4 lg:mb-10  line-clamp-2 lg:line-clamp-3 ">
+            <p className="text-slate-700 text-sm md:text-sm leading-relaxed mb-4   line-clamp-2 lg:line-clamp-3 ">
               {details.description}
             </p>
 
             {/* World Ranking */}
-            <p className="text-lg lg:text-xl font-bold text-teal-400 mb-1 ">
+            <p className="text-lg lg:text-md font-bold text-teal-400 mb-1 ">
               THE World Ranking: {details.worldRanking}
             </p>
 
             {/* Application Fee */}
-            <p className="text-lg lg:text-xl font-bold text-teal-400 mb-2 lg:mb-10">
+            <p className="text-lg lg:text-md font-bold text-teal-400 mb-2 ">
               Application Fee: {details.applicationFee}
             </p>
 
             {/* Application Requirements */}
-            <div className="mb-2 lg:mb-10">
-              <div className="flex items-center gap-1.5 lg:gap-2 mb-1.5 lg:mb-2">
-                <h2 className="text-lg lg:text-2xl font-bold text-white mb-1.5 lg:mb-2">Application Requirements</h2>
+            <div className="mb-2 lg:mb-5">
+              <div className="flex items-center gap-1.5 lg:gap-2 mb-1.5 ">
+                <h2 className="text-lg lg:text-2xl font-bold text-slate-700 mb-1.5 ">Application Requirements</h2>
               </div>
               <ul className="space-y-1 lg:space-y-1.5">
                 {details.applicationRequirements.slice(0, 4).map((requirement, index) => (
-                  <li key={index} className="flex items-start gap-1.5 lg:gap-2 text-slate-300 text-[10px] lg:text-sm">
+                  <li key={index} className="flex items-start gap-1.5 lg:gap-2 text-slate-600 text-[10px] lg:text-sm">
                     {getRequirementIcon(index)}
-                    <span className="line-clamp-1 lg:mb-3">{shortenRequirement(requirement)}</span>
+                    <span className="line-clamp-1 ">{shortenRequirement(requirement)}</span>
                   </li>
                 ))}
               </ul>
@@ -240,7 +240,7 @@ export default function UniversityDetailPage() {
             <div className="mt-auto">
               <Button
                 onClick={handleAccommodationClick}
-                className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 font-semibold py-2 lg:py-2.5 rounded-lg lg:rounded-xl border border-teal-500/30 text-xs lg:text-sm"
+                className="w-full bg-teal-500/20 hover:bg-teal-500/30 text-slate-600 font-semibold py-2 lg:py-2.5 rounded-lg lg:rounded-xl border border-teal-500/30 text-xs lg:text-sm"
               >
                 Accommodation for Students
               </Button>

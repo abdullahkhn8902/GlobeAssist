@@ -5,7 +5,7 @@ import { CountryGrid, type CountryData } from "@/components/dashboard/country-gr
 import { ProfessionalJobGrid, type ProfessionalCountryData } from "@/components/dashboard/professional-job-grid"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
-import { AISequenceLoader } from "@/components/dashboard/ai-sequence-loader"
+import { AgentLoader } from "@/components/loaders/agent-loader"
 
 export default function DashboardHome() {
   const [countries, setCountries] = useState<CountryData[]>([])
@@ -112,9 +112,34 @@ export default function DashboardHome() {
   }, [profileType])
 
   if (loading || !profileType) {
+    const professionalSteps = [
+      { message: "Analyzing your professional profile", subMessage: "Skills & experience" },
+      { message: "Searching global job markets", subMessage: "Opportunities worldwide" },
+      { message: "Finding positions in your industry", subMessage: "Based on your expertise" },
+      { message: "Evaluating cost of living", subMessage: "Salary vs expenses" },
+      { message: "Matching skills with requirements", subMessage: "Best fit opportunities" },
+      { message: "Filtering by your budget", subMessage: "Realistic options" },
+      { message: "Finalizing recommendations", subMessage: "Almost ready" },
+    ]
+
+    const studentSteps = [
+      { message: "Analyzing your academic profile", subMessage: "Grades & qualifications" },
+      { message: "Searching universities worldwide", subMessage: "Top institutions" },
+      { message: "Evaluating program compatibility", subMessage: "Course matching" },
+      { message: "Calculating living expenses", subMessage: "Cost of living data" },
+      { message: "Finding scholarship opportunities", subMessage: "Funding options" },
+      { message: "Filtering by budget constraints", subMessage: "Affordable options" },
+      { message: "Preparing recommendations", subMessage: "Best matches for you" },
+    ]
+
     return (
-      <div className="p-4 md:p-6 lg:p-8 min-h-screen">
-        <AISequenceLoader type={profileType === "professional" ? "professional" : "student"} />
+      <div className=" min-h-screen">
+        <AgentLoader
+          steps={profileType === "professional" ? professionalSteps : studentSteps}
+          title={profileType === "professional" ? "Preparing job market recommendations" : "Preparing recommendations"}
+          variant={profileType === "professional" ? "default" : "light"}
+          bg={"bg-[#dfe5ed]"}
+        />
       </div>
     )
   }
