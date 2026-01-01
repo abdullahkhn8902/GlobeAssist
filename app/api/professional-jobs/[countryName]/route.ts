@@ -24,6 +24,14 @@ interface JobData {
   verified: boolean
 }
 
+// Add a processing flag interface
+interface ProcessingFlag {
+  user_id: string
+  country_name: string
+  is_processing: boolean
+  started_at: string
+}
+
 function getCountryImage(countryName: string): string {
   const countryImages: Record<string, string> = {
     Australia: "/sydney-australia-cityscape.jpg",
@@ -56,11 +64,11 @@ function getCountryImage(countryName: string): string {
 function validateJob(job: JobData): boolean {
   if (!job) return false
 
-  const hasValidTitle = job.title && job.title.length > 2
-  const hasValidCompany = job.company && job.company.length > 1
-  const hasDescription = job.description && job.description.length > 20
-  
-  return hasValidTitle && hasValidCompany && hasDescription
+  const hasValidTitle = typeof job.title === "string" && job.title.length > 2
+  const hasValidCompany = typeof job.company === "string" && job.company.length > 1
+  const hasDescription = typeof job.description === "string" && job.description.length > 20
+
+  return Boolean(hasValidTitle && hasValidCompany && hasDescription)
 }
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
@@ -179,7 +187,7 @@ DO NOT include any explanations, only return the JSON array.`
     const jsonEndIndex = cleanedContent.lastIndexOf("]")
 
     if (jsonStartIndex === -1 || jsonEndIndex === -1 || jsonStartIndex >= jsonEndIndex) {
-      console.error(`[GlobeAssist Server] No valid JSON array found in Perplexity response for ${countryName}`)
+      console.warn(`[GlobeAssist Server] No valid JSON array found in Perplexity response for ${countryName}`)
       return null
     }
 
@@ -189,7 +197,7 @@ DO NOT include any explanations, only return the JSON array.`
     try {
       parsed = JSON.parse(jsonString)
     } catch (parseError) {
-      console.error(`[GlobeAssist Server] Failed to parse JSON for ${countryName}`)
+      console.warn(`[GlobeAssist Server] Failed to parse JSON for ${countryName}: ${parseError instanceof Error ? parseError.message : String(parseError)}`)
       return null
     }
 
@@ -215,7 +223,7 @@ DO NOT include any explanations, only return the JSON array.`
     return jobs.filter(validateJob)
 
   } catch (error) {
-    console.error(`[GlobeAssist Server] Error calling Perplexity for jobs: ${error instanceof Error ? error.message : String(error)}`)
+    console.warn(`[GlobeAssist Server] Error calling Perplexity for jobs: ${error instanceof Error ? error.message : String(error)}`)
     return null
   }
 }
@@ -317,6 +325,53 @@ function getCountryInfo(
   return countryInfo[countryName] || defaultInfo
 }
 
+async function setProcessingFlag(supabase: any, userId: string, countryName: string, isProcessing: boolean): Promise<void> {
+  if (isProcessing) {
+    await supabase
+      .from("professional_jobs_processing")
+      .upsert({
+        user_id: userId,
+        country_name: countryName,
+        is_processing: true,
+        started_at: new Date().toISOString()
+      })
+  } else {
+    await supabase
+      .from("professional_jobs_processing")
+      .delete()
+      .eq("user_id", userId)
+      .eq("country_name", countryName)
+  }
+}
+
+async function isProcessing(supabase: any, userId: string, countryName: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("professional_jobs_processing")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("country_name", countryName)
+    .maybeSingle()
+  
+  if (!data) return false
+  
+  // Check if processing started more than 10 minutes ago (stale)
+  const startedAt = new Date(data.started_at)
+  const now = new Date()
+  const diffMinutes = (now.getTime() - startedAt.getTime()) / (1000 * 60)
+  
+  if (diffMinutes > 10) {
+    // Remove stale processing flag
+    await supabase
+      .from("professional_jobs_processing")
+      .delete()
+      .eq("user_id", userId)
+      .eq("country_name", countryName)
+    return false
+  }
+  
+  return data.is_processing
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ countryName: string }> }) {
   try {
     const resolvedParams = await params
@@ -332,7 +387,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check cache first (similar to university API pattern)
+    // Check if processing is already in progress
+    const processing = await isProcessing(supabase, user.id, decodedCountryName)
+    
+    if (processing) {
+      console.log(`[GlobeAssist Server] Processing already in progress for ${decodedCountryName}`)
+      return NextResponse.json({
+        success: true,
+        processing: true,
+        message: "Jobs are being generated. Please wait...",
+      }, { status: 202, headers: { "Retry-After": "3" } })
+    }
+
+    // Check cache first
     console.log(`[GlobeAssist Server] Checking cache for ${decodedCountryName}`)
     const { data: cached } = await supabase
       .from("professional_jobs_cache")
@@ -355,90 +422,130 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Get professional profile
-    const { data: profile } = await supabase.from("professional_profiles").select("*").eq("user_id", user.id).single()
+    // Set processing flag
+    await setProcessingFlag(supabase, user.id, decodedCountryName, true)
 
-    const jobTitle = profile?.current_job_title || "Software Engineer"
-    const industry = profile?.industry_field || "Technology"
-    const skills = profile?.cv_parsed_data?.skills || ["JavaScript", "Python", "SQL"]
-    const yearsOfExperience = profile?.years_of_experience || 3
-    const qualification = profile?.highest_qualification || "Bachelor's Degree"
+    try {
+      // Get professional profile
+      const { data: profile } = await supabase.from("professional_profiles").select("*").eq("user_id", user.id).single()
 
-    console.log(`[GlobeAssist Server] Fetching jobs for ${jobTitle} in ${decodedCountryName}`)
+      const jobTitle = profile?.current_job_title || "Software Engineer"
+      const industry = profile?.industry_field || "Technology"
+      const skills = profile?.cv_parsed_data?.skills || ["JavaScript", "Python", "SQL"]
+      const yearsOfExperience = profile?.years_of_experience || 3
+      const qualification = profile?.highest_qualification || "Bachelor's Degree"
 
-    // Fetch jobs from Perplexity (similar to university API)
-    const jobs = await fetchJobsFromPerplexity(
-      decodedCountryName,
-      jobTitle,
-      industry,
-      skills,
-      yearsOfExperience,
-      qualification
-    )
+      console.log(`[GlobeAssist Server] Fetching jobs for ${jobTitle} in ${decodedCountryName}`)
 
-    if (!jobs || jobs.length === 0) {
-      console.log(`[GlobeAssist Server] No jobs found for ${decodedCountryName}`)
-      return NextResponse.json({
-        success: false,
-        error: "No jobs found. Please try again or adjust your search criteria.",
-        jobs: [],
-        country: null,
-      }, { status: 404 })
-    }
+      // Fetch jobs from Perplexity
+      const jobs = await fetchJobsFromPerplexity(
+        decodedCountryName,
+        jobTitle,
+        industry,
+        skills,
+        yearsOfExperience,
+        qualification
+      )
 
-    // Add housing information
-    console.log(`[GlobeAssist Server] Adding housing information to ${jobs.length} jobs`)
-    const jobsWithHousing = await Promise.all(
-      jobs.map(async (job) => {
-        try {
-          const airbnbUrl = await findAirbnbHousingLink(job.location, decodedCountryName)
-          return { ...job, airbnbUrl }
-        } catch (error) {
-          return job
+      if (!jobs || jobs.length === 0) {
+        console.warn(`[GlobeAssist Server] No jobs found for ${decodedCountryName}`)
+
+        // Clear processing flag
+        await setProcessingFlag(supabase, user.id, decodedCountryName, false)
+
+        // Attempt to return any cached jobs even if below MIN_REQUIRED_JOBS
+        const { data: fallbackCached } = await supabase
+          .from("professional_jobs_cache")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("country_name", decodedCountryName)
+          .maybeSingle()
+
+        if (fallbackCached?.jobs && Array.isArray(fallbackCached.jobs) && fallbackCached.jobs.length > 0) {
+          const validFallback = (fallbackCached.jobs as any[]).filter(validateJob)
+          console.log(`[GlobeAssist Server] Returning fallback cached jobs for ${decodedCountryName} (${validFallback.length})`)
+          return NextResponse.json({
+            success: true,
+            country: fallbackCached.country_info || null,
+            jobs: validFallback,
+            cached: true,
+            dataQuality: "cached_fallback",
+          })
         }
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: "No jobs found for this country",
+            jobs: [],
+            country: null,
+          },
+          { status: 404 }
+        )
+      }
+
+      // Add housing information
+      console.log(`[GlobeAssist Server] Adding housing information to ${jobs.length} jobs`)
+      const jobsWithHousing = await Promise.all(
+        jobs.map(async (job) => {
+          try {
+            const airbnbUrl = await findAirbnbHousingLink(job.location, decodedCountryName)
+            return { ...job, airbnbUrl }
+          } catch (error) {
+            return job
+          }
+        })
+      )
+
+      const validJobsWithHousing = jobsWithHousing.filter(validateJob)
+      console.log(`[GlobeAssist Server] Valid jobs with housing: ${validJobsWithHousing.length}`)
+
+      // Get country info
+      const countryInfo = getCountryInfo(decodedCountryName, industry)
+      const countryData = {
+        name: decodedCountryName,
+        image: getCountryImage(decodedCountryName),
+        imageUrl: getCountryImage(decodedCountryName),
+        ...countryInfo,
+      }
+
+      // Cache the results
+      console.log(`[GlobeAssist Server] Caching data for ${decodedCountryName}`)
+      await supabase
+        .from("professional_jobs_cache")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("country_name", decodedCountryName)
+
+      const { error: insertError } = await supabase.from("professional_jobs_cache").insert({
+        user_id: user.id,
+        country_name: decodedCountryName,
+        jobs: validJobsWithHousing,
+        country_info: countryData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-    )
 
-    const validJobsWithHousing = jobsWithHousing.filter(validateJob)
-    console.log(`[GlobeAssist Server] Valid jobs with housing: ${validJobsWithHousing.length}`)
+      if (insertError) {
+        console.error("[GlobeAssist Server] Error caching job data:", insertError)
+      }
 
-    // Get country info
-    const countryInfo = getCountryInfo(decodedCountryName, industry)
-    const countryData = {
-      name: decodedCountryName,
-      image: getCountryImage(decodedCountryName),
-      imageUrl: getCountryImage(decodedCountryName),
-      ...countryInfo,
+      // Clear processing flag
+      await setProcessingFlag(supabase, user.id, decodedCountryName, false)
+
+      return NextResponse.json({
+        success: true,
+        country: countryData,
+        jobs: validJobsWithHousing,
+        cached: false,
+        dataQuality: "real_time"
+      })
+
+    } catch (error) {
+      // Clear processing flag on error
+      await setProcessingFlag(supabase, user.id, decodedCountryName, false)
+      throw error
     }
-
-    // Cache the results (similar to university API)
-    console.log(`[GlobeAssist Server] Caching data for ${decodedCountryName}`)
-    await supabase
-      .from("professional_jobs_cache")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("country_name", decodedCountryName)
-
-    const { error: insertError } = await supabase.from("professional_jobs_cache").insert({
-      user_id: user.id,
-      country_name: decodedCountryName,
-      jobs: validJobsWithHousing,
-      country_info: countryData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-
-    if (insertError) {
-      console.error("[GlobeAssist Server] Error caching job data:", insertError)
-    }
-
-    return NextResponse.json({
-      success: true,
-      country: countryData,
-      jobs: validJobsWithHousing,
-      cached: false,
-      dataQuality: "real_time"
-    })
 
   } catch (error) {
     console.error("[GlobeAssist Server] Error in professional-jobs API:", error)

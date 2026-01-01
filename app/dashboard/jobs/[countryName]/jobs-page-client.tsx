@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Clock, MapPin, DollarSign, Calendar, GraduationCap, Globe, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getCountryImage } from "@/lib/country-images"
 import { JobsShimmer } from "@/components/loaders/jobs-shimmer"
 
 interface JobData {
@@ -172,7 +173,7 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
           {/* Country Image */}
           <div className="relative h-40 lg:h-48 overflow-hidden flex-shrink-0">
             <Image
-              src={country?.imageUrl || "/placeholder.svg"}
+              src={country?.imageUrl || getCountryImage(countryName) || "/placeholder.svg"}
               alt={countryName}
               fill
               className="object-cover"
