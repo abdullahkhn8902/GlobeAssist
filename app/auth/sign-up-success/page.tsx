@@ -1,51 +1,69 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Globe, Mail, CheckCircle } from "lucide-react"
 
 export default function SignUpSuccessPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Navbar */}
-      <nav className="p-4 sm:p-6">
-        <div className="flex items-center justify-center">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <Globe className="w-6 h-6 text-primary-foreground" />
+    <div className="min-h-screen bg-[#e2e8f0] flex flex-col">
+      {/* Header - matching sign-up page style */}
+      <header className="bg-[#e2e8f0] border-b border-[#cbd5e1]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-[#1d293d] flex items-center justify-center">
+                <Globe className="w-5 h-5 text-white" />
+              </div>
+            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/auth/sign-up"
+                className="border border-[#1d293d] text-[#1d293d] hover:bg-[#1d293d] hover:text-white bg-transparent rounded-full px-6 py-2 text-sm font-medium transition-colors"
+              >
+                Sign up
+              </Link>
+              <Link
+                href="/auth/login"
+                className="bg-[#1d293d] text-white hover:bg-[#0f172a] rounded-full px-6 py-2 text-sm font-medium transition-colors"
+              >
+                Login
+              </Link>
             </div>
-            <span className="text-xl font-bold text-foreground">GlobeAssist</span>
-          </Link>
+          </div>
         </div>
-      </nav>
+      </header>
 
       {/* Content */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md bg-card border-border shadow-xl">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-16 h-16 bg-secondary/20 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="w-8 h-8 text-secondary" />
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-3xl p-8 shadow-xl text-center">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <CardTitle className="text-2xl text-card-foreground">Thank you for signing up!</CardTitle>
-            <CardDescription className="text-muted-foreground">Check your email to confirm</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-6">
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Mail className="w-5 h-5" />
-              <p className="text-sm">
-                We've sent a confirmation link to your email address. Please check your inbox and click the link to
-                activate your account.
-              </p>
+            <h1 className="text-2xl font-bold text-[#1d293d] mb-2">Check Your Email</h1>
+            <p className="text-[#64748b] text-sm mb-6">We've sent a confirmation link to your email address</p>
+
+            <div className="flex items-start gap-3 text-left bg-[#f1f5f9] p-4 rounded-xl mb-6">
+              <Mail className="w-5 h-5 text-[#1d293d] mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm text-[#475569]">
+                  Click the link in your email to verify your account. Once verified, you'll be automatically logged in
+                  and can start your onboarding.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              After confirming your email, you'll be guided through a quick onboarding process to personalize your
-              experience.
+
+            <p className="text-xs text-[#94a3b8] mb-6">
+              Didn't receive the email? Check your spam folder or wait a few minutes.
             </p>
-            <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/auth/login">Back to Login</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+
+            <Link
+              href="/auth/login"
+              className="inline-block w-full h-12 bg-[#1d293d] text-white hover:bg-[#0f172a] rounded-xl font-semibold transition-all leading-[3rem] text-center"
+            >
+              Back to Login
+            </Link>
+          </div>
+        </div>
+      </main>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,16 @@ import {
   FIELDS_OF_INTEREST,
   type CVParsedData,
 } from "@/lib/types/onboarding"
-import { STUDENT_BUDGET_BRACKETS, PROFESSIONAL_BUDGET_BRACKETS } from "@/lib/budget-data"
+import {
+  STUDENT_BUDGET_BRACKETS,
+  PROFESSIONAL_BUDGET_BRACKETS,
+  isBudgetSufficientForCountry,
+  getBudgetWarningMessage,
+  getRecommendedCountriesForBudget,
+  COUNTRY_BUDGET_DATA,
+  getMinimumBudget,
+  normalizeCountryNameForBudget,
+} from "@/lib/budget-data"
 import {
   Camera,
   Loader2,
@@ -27,7 +36,6 @@ import {
   User,
   GraduationCap,
   Briefcase,
-  MapPin,
   DollarSign,
   FileText,
   Upload,
@@ -38,6 +46,7 @@ import {
   Award,
   Target,
   BookOpen,
+  Info,
 } from "lucide-react"
 import Image from "next/image"
 import { useToast } from "@/components/ui/use-toast"
@@ -97,6 +106,66 @@ export default function ProfilePage() {
   const [cvFileName, setCvFileName] = useState<string | null>(null)
   const [cvParseError, setCvParseError] = useState<string | null>(null)
 
+  const studentBudgetValidation = useMemo(() => {
+    if (!studentProfile?.preferred_destination || !studentProfile?.budget_max) return null
+    return isBudgetSufficientForCountry(studentProfile.preferred_destination, studentProfile.budget_max, "student")
+  }, [studentProfile?.preferred_destination, studentProfile?.budget_max])
+
+  const studentBudgetWarning = useMemo(() => {
+    if (!studentProfile?.preferred_destination || !studentProfile?.budget_max) return null
+    return getBudgetWarningMessage(studentProfile.preferred_destination, studentProfile.budget_max, "student")
+  }, [studentProfile?.preferred_destination, studentProfile?.budget_max])
+
+  const studentAffordableCountries = useMemo(() => {
+    if (!studentProfile?.budget_max) return []
+    return getRecommendedCountriesForBudget(studentProfile.budget_max, "student")
+  }, [studentProfile?.budget_max])
+
+  const professionalBudgetValidation = useMemo(() => {
+    if (!professionalProfile?.preferred_destination || !professionalProfile?.budget_max) return null
+    return isBudgetSufficientForCountry(
+      professionalProfile.preferred_destination,
+      professionalProfile.budget_max,
+      "professional",
+    )
+  }, [professionalProfile?.preferred_destination, professionalProfile?.budget_max])
+
+  const professionalBudgetWarning = useMemo(() => {
+    if (!professionalProfile?.preferred_destination || !professionalProfile?.budget_max) return null
+    return getBudgetWarningMessage(
+      professionalProfile.preferred_destination,
+      professionalProfile.budget_max,
+      "professional",
+    )
+  }, [professionalProfile?.preferred_destination, professionalProfile?.budget_max])
+
+  const professionalAffordableCountries = useMemo(() => {
+    if (!professionalProfile?.budget_max) return []
+    return getRecommendedCountriesForBudget(professionalProfile.budget_max, "professional")
+  }, [professionalProfile?.budget_max])
+
+  const getStudentCountryBudgetInfo = (countryName: string) => {
+    const normalizedCountryName = normalizeCountryNameForBudget(countryName)
+    const countryData = COUNTRY_BUDGET_DATA.find((c) => c.country.toLowerCase() === normalizedCountryName.toLowerCase())
+    if (!countryData) return null
+    return {
+      min: countryData.studentUsdMin,
+      max: countryData.studentUsdMax,
+      tier: countryData.tier,
+    }
+  }
+
+  const getProfessionalCountryBudgetInfo = (countryName: string) => {
+    const normalizedCountryName = normalizeCountryNameForBudget(countryName)
+    const countryData = COUNTRY_BUDGET_DATA.find((c) => c.country.toLowerCase() === normalizedCountryName.toLowerCase())
+    if (!countryData) return null
+    return {
+      min: countryData.professionalUsdMin,
+      max: countryData.professionalUsdMax,
+      tier: countryData.tier,
+    }
+  }
+
   // Check if preferences have changed (budget, destination, CV for professionals)
   const hasPreferencesChanged = useCallback(() => {
     if (userProfile?.profile_type === "student" && studentProfile && originalStudentProfile) {
@@ -122,53 +191,84 @@ export default function ProfilePage() {
     return false
   }, [userProfile, studentProfile, originalStudentProfile, professionalProfile, originalProfessionalProfile])
 
-  // Clear cached recommendations when preferences change
   const clearCachedRecommendations = async (userId: string, profileType: string) => {
     const supabase = createClient()
-    
+
     try {
       if (profileType === "student") {
-        // Clear all student-related caches
-        const { error: recError } = await supabase
-          .from("country_recommendations")
-          .delete()
-          .eq("user_id", userId)
-        
-        const { error: scholarError } = await supabase
-          .from("scholarships_cache")
-          .delete()
-          .eq("user_id", userId)
-        
-        // Also clear any other student-related cache tables
-        const { error: timelineError } = await supabase
-          .from("timeline_recommendations")
-          .delete()
-          .eq("user_id", userId)
-        
-        console.log(`[Profile] Cleared student cache for user: ${userId}`)
-        
+        // Clear ALL student-related cache tables
+        await Promise.all([
+          supabase.from("country_recommendations").delete().eq("user_id", userId),
+          supabase.from("scholarships_cache").delete().eq("user_id", userId),
+          supabase.from("timeline_recommendations").delete().eq("user_id", userId),
+          supabase.from("country_details_cache").delete().eq("user_id", userId),
+          supabase.from("university_details_cache").delete().eq("user_id", userId),
+          supabase.from("program_details_cache").delete().eq("user_id", userId),
+          supabase.from("visa_requirements_cache").delete().eq("user_id", userId),
+          supabase.from("accommodation_cache").delete().eq("user_id", userId),
+        ])
+
+        console.log(`[Profile] Cleared ALL student cache tables for user: ${userId}`)
       } else {
-        // Clear all professional-related caches
-        const { error: jobError } = await supabase
-          .from("job_recommendations")
-          .delete()
-          .eq("user_id", userId)
-        
-        const { error: jobsCacheError } = await supabase
-          .from("professional_jobs_cache")
-          .delete()
-          .eq("user_id", userId)
-        
-        const { error: visaError } = await supabase
-          .from("professional_visa_cache")
-          .delete()
-          .eq("user_id", userId)
-        
-        console.log(`[Profile] Cleared professional cache for user: ${userId}`)
+        // Clear ALL professional-related cache tables
+        await Promise.all([
+          supabase.from("job_recommendations").delete().eq("user_id", userId),
+          supabase.from("professional_jobs_cache").delete().eq("user_id", userId),
+          supabase.from("professional_visa_cache").delete().eq("user_id", userId),
+          supabase.from("country_details_cache").delete().eq("user_id", userId),
+          supabase.from("accommodation_cache").delete().eq("user_id", userId),
+        ])
+
+        console.log(`[Profile] Cleared ALL professional cache tables for user: ${userId}`)
       }
     } catch (error) {
       console.error("[Profile] Error clearing cache:", error)
+      // Don't throw - we still want to save the profile even if cache clearing fails
     }
+  }
+
+  const handleStudentBudgetChange = (budgetMin: number, budgetMax: number) => {
+    if (!studentProfile) return
+
+    const newProfile = { ...studentProfile, budget_min: budgetMin, budget_max: budgetMax }
+
+    // Check if current destination is still affordable with new budget
+    if (studentProfile.preferred_destination) {
+      const budgetInfo = getStudentCountryBudgetInfo(studentProfile.preferred_destination)
+      if (budgetInfo && budgetMax < budgetInfo.min) {
+        // Clear destination if no longer affordable
+        newProfile.preferred_destination = null
+        toast({
+          title: "Destination cleared",
+          description: `${studentProfile.preferred_destination} is no longer within your budget. Please select a new destination.`,
+          variant: "destructive",
+        })
+      }
+    }
+
+    setStudentProfile(newProfile)
+  }
+
+  const handleProfessionalBudgetChange = (budgetMin: number, budgetMax: number) => {
+    if (!professionalProfile) return
+
+    const newProfile = { ...professionalProfile, budget_min: budgetMin, budget_max: budgetMax }
+
+    // Check if current destination is still affordable with new budget
+    if (professionalProfile.preferred_destination) {
+      const budgetInfo = getProfessionalCountryBudgetInfo(professionalProfile.preferred_destination)
+      if (budgetInfo && budgetMax < budgetInfo.min) {
+        // Clear destination if no longer affordable
+        newProfile.preferred_destination = null
+        toast({
+          title: "Destination cleared",
+          description: `${professionalProfile.preferred_destination} is no longer within your budget. Please select a new destination.`,
+          variant: "destructive",
+        })
+      }
+    }
+
+    setProfessionalProfile(newProfile)
   }
 
   // Load user data on mount
@@ -427,19 +527,18 @@ export default function ProfilePage() {
 
         if (error) throw error
 
-        // Clear cache FIRST if preferences changed
         if (preferencesChanged) {
           await clearCachedRecommendations(user.id, userProfile.profile_type)
           toast({
             title: "Profile updated",
-            description: "New recommendations will be generated based on your updated preferences.",
+            description:
+              "Your preferences have changed. All recommendations will be regenerated based on your new settings.",
             duration: 5000,
           })
         }
 
         // Update original profile to reflect saved state
         setOriginalStudentProfile(JSON.parse(JSON.stringify(studentProfile)))
-        
       } else if (userProfile.profile_type === "professional" && professionalProfile) {
         const { error } = await supabase
           .from("professional_profiles")
@@ -460,12 +559,12 @@ export default function ProfilePage() {
 
         if (error) throw error
 
-        // Clear cache FIRST if preferences changed
         if (preferencesChanged) {
           await clearCachedRecommendations(user.id, userProfile.profile_type)
           toast({
             title: "Profile updated",
-            description: "New recommendations will be generated based on your updated preferences.",
+            description:
+              "Your preferences have changed. All recommendations will be regenerated based on your new settings.",
             duration: 5000,
           })
         }
@@ -476,17 +575,17 @@ export default function ProfilePage() {
 
       // Show success toast even if no preferences changed
       if (!preferencesChanged) {
-        toast({ 
-          title: "Profile saved", 
-          description: "Your profile has been updated successfully" 
+        toast({
+          title: "Profile saved",
+          description: "Your profile has been updated successfully",
         })
       }
     } catch (error) {
       console.error("Save error:", error)
-      toast({ 
-        title: "Save failed", 
-        description: "Failed to save profile. Please try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Save failed",
+        description: "Failed to save profile. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setIsSaving(false)
@@ -496,7 +595,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#1e2a3e' }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#1e2a3e" }} />
       </div>
     )
   }
@@ -514,6 +613,17 @@ export default function ProfilePage() {
   const intakeYears = Array.from({ length: 5 }, (_, i) => currentYear + i)
   const experienceYears = Array.from({ length: 31 }, (_, i) => i)
 
+  const studentMinimumBudget = getMinimumBudget("student")
+  const professionalMinimumBudget = getMinimumBudget("professional")
+  const isStudentBelowMinimum = Boolean(
+    studentProfile && studentProfile.budget_max > 0 && studentProfile.budget_max < studentMinimumBudget,
+  )
+  const isProfessionalBelowMinimum = Boolean(
+    professionalProfile &&
+      professionalProfile.budget_max > 0 &&
+      professionalProfile.budget_max < professionalMinimumBudget,
+  )
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -523,11 +633,11 @@ export default function ProfilePage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Profile Settings</h1>
             <p className="text-gray-600 mt-1">Manage your account details and preferences</p>
           </div>
-          <Button 
-            onClick={handleSave} 
-            disabled={isSaving} 
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || isStudentBelowMinimum || isProfessionalBelowMinimum}
             className="gap-2 px-6 py-2 rounded-lg transition-all duration-200"
-            style={{ backgroundColor: '#1e2a3e', color: 'white' }}
+            style={{ backgroundColor: "#1e2a3e", color: "white" }}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save Changes
@@ -539,10 +649,7 @@ export default function ProfilePage() {
           {/* Left Column - Profile Card */}
           <div className="lg:col-span-1">
             <Card className="border-0 shadow-lg rounded-2xl overflow-hidden h-full ">
-              <div 
-                className="h-32 w-full"
-                style={{ backgroundColor: '#1e2a3e' }}
-              />
+              <div className="h-32 w-full" style={{ backgroundColor: "#1e2a3e" }} />
               <CardContent className="pt-0 px-6 pb-6">
                 <div className="relative -top-12 mb-2">
                   <div className="w-28 h-28 rounded-2xl mx-auto overflow-hidden border-4 border-white shadow-lg bg-white">
@@ -555,12 +662,17 @@ export default function ProfilePage() {
                           className="object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: '#1e2a3e' }}>
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{ backgroundColor: "#1e2a3e" }}
+                        >
                           <User className="w-12 h-12 text-white" />
                         </div>
                       )}
-                      <label className="absolute bottom-1 right-1 p-2 rounded-full cursor-pointer transition-all hover:scale-110 shadow-lg"
-                        style={{ backgroundColor: '#1e2a3e' }}>
+                      <label
+                        className="absolute bottom-1 right-1 p-2 rounded-full cursor-pointer transition-all hover:scale-110 shadow-lg"
+                        style={{ backgroundColor: "#1e2a3e" }}
+                      >
                         <input
                           type="file"
                           accept="image/*"
@@ -580,8 +692,10 @@ export default function ProfilePage() {
                 <div className="text-center -mt-8">
                   <h2 className="text-xl font-bold text-gray-900">{userProfile.full_name || "User"}</h2>
                   <p className="text-gray-600 text-sm mt-1">{userProfile.email}</p>
-                  <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full text-sm font-medium capitalize"
-                    style={{ backgroundColor: '#1e2a3e', color: 'white' }}>
+                  <div
+                    className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full text-sm font-medium capitalize"
+                    style={{ backgroundColor: "#1e2a3e", color: "white" }}
+                  >
                     <User className="w-3.5 h-3.5" />
                     {userProfile.profile_type} Account
                   </div>
@@ -594,7 +708,7 @@ export default function ProfilePage() {
           <div className="lg:col-span-2">
             {userProfile.profile_type === "student" && studentProfile && (
               <Card className="border-0 shadow-lg rounded-2xl overflow-hidden ">
-                <CardHeader className="pb-3 pt-5" style={{ backgroundColor: '#1e2a3e' }}>
+                <CardHeader className="pb-3 pt-5" style={{ backgroundColor: "#1e2a3e" }}>
                   <CardTitle className="text-white flex items-center gap-3 mb-11">
                     <GraduationCap className="w-6 h-6 " />
                     Student Profile
@@ -606,21 +720,21 @@ export default function ProfilePage() {
                 <CardContent className="p-6">
                   <Tabs defaultValue="academic" className="w-full">
                     <TabsList className="w-full grid grid-cols-3 mb-8 bg-gray-100 p-1 rounded-xl">
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="academic"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
                         <BookOpen className="w-4 h-4 mr-2" />
                         Academic
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="preferences"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
                         <Target className="w-4 h-4 mr-2" />
                         Preferences
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="interests"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
@@ -637,8 +751,10 @@ export default function ProfilePage() {
                             value={studentProfile.latest_qualification || ""}
                             onValueChange={(v) => setStudentProfile({ ...studentProfile, latest_qualification: v })}
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select qualification" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -657,7 +773,7 @@ export default function ProfilePage() {
                             onChange={(e) => setStudentProfile({ ...studentProfile, university_name: e.target.value })}
                             placeholder="Enter university name"
                             className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                            style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                           />
                         </div>
                         <div className="space-y-3">
@@ -668,8 +784,10 @@ export default function ProfilePage() {
                               setStudentProfile({ ...studentProfile, graduation_year: Number.parseInt(v) })
                             }
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select year" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -688,7 +806,7 @@ export default function ProfilePage() {
                             onChange={(e) => setStudentProfile({ ...studentProfile, grade_cgpa: e.target.value })}
                             placeholder="e.g., 3.8 GPA or 85%"
                             className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                            style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                           />
                         </div>
                       </div>
@@ -699,15 +817,17 @@ export default function ProfilePage() {
                             <Checkbox
                               checked={studentProfile.currently_studying === true}
                               onCheckedChange={() => setStudentProfile({ ...studentProfile, currently_studying: true })}
-                              style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                              style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                             />
                             <span className="text-gray-700">Yes</span>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white transition-colors">
                             <Checkbox
                               checked={studentProfile.currently_studying === false}
-                              onCheckedChange={() => setStudentProfile({ ...studentProfile, currently_studying: false })}
-                              style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                              onCheckedChange={() =>
+                                setStudentProfile({ ...studentProfile, currently_studying: false })
+                              }
+                              style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                             />
                             <span className="text-gray-700">No</span>
                           </label>
@@ -723,33 +843,16 @@ export default function ProfilePage() {
                             value={studentProfile.degree_to_pursue || ""}
                             onValueChange={(v) => setStudentProfile({ ...studentProfile, degree_to_pursue: v })}
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select degree" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
                               {DEGREES.map((d) => (
                                 <SelectItem key={d} value={d}>
                                   {d}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium">Preferred Destination</Label>
-                          <Select
-                            value={studentProfile.preferred_destination || ""}
-                            onValueChange={(v) => setStudentProfile({ ...studentProfile, preferred_destination: v })}
-                          >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
-                              <SelectValue placeholder="Select country" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                              {COUNTRIES.map((c) => (
-                                <SelectItem key={c} value={c}>
-                                  {c}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -763,8 +866,10 @@ export default function ProfilePage() {
                               setStudentProfile({ ...studentProfile, preferred_year_of_intake: Number.parseInt(v) })
                             }
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select year" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -777,15 +882,19 @@ export default function ProfilePage() {
                           </Select>
                         </div>
                       </div>
+
                       <div className="space-y-5 p-4 bg-gray-50 rounded-xl">
                         <div className="flex items-center justify-between">
                           <Label className="text-gray-700 font-medium flex items-center gap-2">
                             <DollarSign className="w-4 h-4" />
-                            Budget Range
+                            Budget Range (Total Education Cost)
                           </Label>
-                          <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white">
-                            ${studentProfile.budget_min.toLocaleString()} - ${studentProfile.budget_max.toLocaleString()}
-                          </span>
+                          {studentProfile.budget_max > 0 && (
+                            <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white">
+                              ${studentProfile.budget_min.toLocaleString()} - $
+                              {studentProfile.budget_max.toLocaleString()}
+                            </span>
+                          )}
                         </div>
 
                         <Select
@@ -793,12 +902,14 @@ export default function ProfilePage() {
                           onValueChange={(value) => {
                             const bracket = STUDENT_BUDGET_BRACKETS.find((b) => b.max.toString() === value)
                             if (bracket) {
-                              setStudentProfile({ ...studentProfile, budget_min: bracket.min, budget_max: bracket.max })
+                              handleStudentBudgetChange(bracket.min, bracket.max)
                             }
                           }}
                         >
-                          <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                          <SelectTrigger
+                            className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                            style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                          >
                             <SelectValue placeholder="Select your budget range" />
                           </SelectTrigger>
                           <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -815,20 +926,117 @@ export default function ProfilePage() {
 
                         {studentProfile.budget_max > 0 && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Info className="w-4 h-4" />
                             <span>
-                              Selected: ${studentProfile.budget_min.toLocaleString()} - ${studentProfile.budget_max.toLocaleString()}
+                              Selected: ${studentProfile.budget_min.toLocaleString()} - $
+                              {studentProfile.budget_max.toLocaleString()}
                             </span>
                           </div>
                         )}
+
+                        {isStudentBelowMinimum && (
+                          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-red-700">
+                              <p className="font-medium">Budget too low</p>
+                              <p>
+                                The minimum budget for any country is ${studentMinimumBudget.toLocaleString()}. Please
+                                select a higher budget range.
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-gray-700 font-medium">Preferred Destination</Label>
+                        <Select
+                          value={studentProfile.preferred_destination || ""}
+                          onValueChange={(v) => setStudentProfile({ ...studentProfile, preferred_destination: v })}
+                        >
+                          <SelectTrigger
+                            className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                            style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                          >
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            {COUNTRIES.map((c) => {
+                              const budgetInfo = getStudentCountryBudgetInfo(c)
+                              const isAffordable =
+                                !budgetInfo || !studentProfile.budget_max || studentProfile.budget_max >= budgetInfo.min
+
+                              return (
+                                <SelectItem key={c} value={c} disabled={studentProfile.budget_max > 0 && !isAffordable}>
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span
+                                      className={
+                                        studentProfile.budget_max > 0 && !isAffordable
+                                          ? "text-muted-foreground opacity-50"
+                                          : ""
+                                      }
+                                    >
+                                      {c}
+                                    </span>
+                                    {budgetInfo && studentProfile.budget_max > 0 && (
+                                      <span className={`text-xs ${isAffordable ? "text-green-600" : "text-red-500"}`}>
+                                        {isAffordable ? "✓ Affordable" : `Min: $${(budgetInfo.min / 1000).toFixed(0)}k`}
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Budget validation feedback */}
+                        {studentProfile.preferred_destination && studentBudgetValidation && (
+                          <>
+                            {studentBudgetValidation.sufficient ? (
+                              <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-green-700">
+                                  <p className="font-medium">
+                                    Budget compatible with {studentProfile.preferred_destination}
+                                  </p>
+                                  <p>
+                                    Typical range: ${studentBudgetValidation.minRequired.toLocaleString()} - $
+                                    {studentBudgetValidation.maxRecommended.toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              studentBudgetWarning && (
+                                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                  <div className="text-sm text-amber-700">
+                                    <p className="font-medium">Budget may be insufficient</p>
+                                    <p>{studentBudgetWarning}</p>
+                                    {studentAffordableCountries.length > 0 && (
+                                      <p className="mt-1">
+                                        <strong>Suggested alternatives:</strong>{" "}
+                                        {studentAffordableCountries.slice(0, 4).join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </>
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-xl">
                         <Label className="text-gray-700 font-medium">Apply for Scholarships?</Label>
                         <div className="flex gap-4">
                           <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white transition-colors">
                             <Checkbox
                               checked={studentProfile.apply_for_scholarships === true}
-                              onCheckedChange={() => setStudentProfile({ ...studentProfile, apply_for_scholarships: true })}
-                              style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                              onCheckedChange={() =>
+                                setStudentProfile({ ...studentProfile, apply_for_scholarships: true })
+                              }
+                              style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                             />
                             <span className="text-gray-700">Yes</span>
                           </label>
@@ -838,7 +1046,7 @@ export default function ProfilePage() {
                               onCheckedChange={() =>
                                 setStudentProfile({ ...studentProfile, apply_for_scholarships: false })
                               }
-                              style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                              style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                             />
                             <span className="text-gray-700">No</span>
                           </label>
@@ -858,39 +1066,40 @@ export default function ProfilePage() {
                           }}
                           value=""
                         >
-                          <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                          <SelectTrigger
+                            className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                            style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                          >
                             <SelectValue placeholder="Add field of interest" />
                           </SelectTrigger>
                           <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                            {FIELDS_OF_INTEREST.filter((f) => !(studentProfile.fields_of_interest || []).includes(f)).map(
-                              (f) => (
-                                <SelectItem key={f} value={f}>
-                                  {f}
-                                </SelectItem>
-                              ),
-                            )}
+                            {FIELDS_OF_INTEREST.filter(
+                              (f) => !(studentProfile.fields_of_interest || []).includes(f),
+                            ).map((f) => (
+                              <SelectItem key={f} value={f}>
+                                {f}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         {(studentProfile.fields_of_interest || []).length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-4">
-                            {(studentProfile.fields_of_interest || []).map((field) => (
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {(studentProfile.fields_of_interest || []).map((interest) => (
                               <span
-                                key={field}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium"
+                                key={interest}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium"
                               >
-                                {field}
+                                {interest}
                                 <button
-                                  type="button"
-                                  onClick={() =>
+                                  onClick={() => {
                                     setStudentProfile({
                                       ...studentProfile,
                                       fields_of_interest: (studentProfile.fields_of_interest || []).filter(
-                                        (f) => f !== field,
+                                        (i) => i !== interest,
                                       ),
                                     })
-                                  }
-                                  className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                                  }}
+                                  className="hover:text-blue-600"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
@@ -906,7 +1115,7 @@ export default function ProfilePage() {
                           onChange={(e) => setStudentProfile({ ...studentProfile, why_this_field: e.target.value })}
                           placeholder="Tell us why you're interested in this field..."
                           className="min-h-[120px] rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                          style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                          style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                         />
                       </div>
                     </TabsContent>
@@ -917,7 +1126,7 @@ export default function ProfilePage() {
 
             {userProfile.profile_type === "professional" && professionalProfile && (
               <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
-                <CardHeader className="pb-3 pt-5" style={{ backgroundColor: '#1e2a3e' }}>
+                <CardHeader className="pb-3 pt-5" style={{ backgroundColor: "#1e2a3e" }}>
                   <CardTitle className="text-white flex items-center gap-3 mb-11">
                     <Briefcase className="w-6 h-6" />
                     Professional Profile
@@ -929,21 +1138,21 @@ export default function ProfilePage() {
                 <CardContent className="p-6">
                   <Tabs defaultValue="work" className="w-full">
                     <TabsList className="w-full grid grid-cols-3 mb-8 bg-gray-100 p-1 rounded-xl">
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="work"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
                         <Building className="w-4 h-4 mr-2" />
                         Work
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="preferences"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
                         <Target className="w-4 h-4 mr-2" />
                         Preferences
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="cv"
                         className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-lg transition-all"
                       >
@@ -963,7 +1172,7 @@ export default function ProfilePage() {
                             }
                             placeholder="e.g., Software Engineer"
                             className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                            style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                           />
                         </div>
                         <div className="space-y-3">
@@ -975,40 +1184,39 @@ export default function ProfilePage() {
                             }
                             placeholder="e.g., Google"
                             className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}
+                            style={{ "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
                           />
                         </div>
                         <div className="space-y-3">
                           <Label className="text-gray-700 font-medium">Years of Experience</Label>
                           <Select
-  value={professionalProfile.years_of_experience?.toString() || ""}
-  onValueChange={(v) =>
-    setProfessionalProfile({
-      ...professionalProfile,
-      years_of_experience: Number.parseInt(v),
-    })
-  }
->
-  <SelectTrigger
-    className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-    style={{
-      borderColor: "#e5e7eb",
-      "--tw-ring-color": "#1e2a3e",
-    } as React.CSSProperties}
-  >
-    <SelectValue placeholder="Select years" />
-  </SelectTrigger>
-
-  {/* 👇 THIS IS THE IMPORTANT PART */}
-  <SelectContent className="bg-white border border-gray-200 shadow-lg">
-    {experienceYears.map((y) => (
-      <SelectItem key={y} value={y.toString()}>
-        {y === 0 ? "Less than 1 year" : y === 1 ? "1 year" : `${y} years`}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-
+                            value={professionalProfile.years_of_experience?.toString() || ""}
+                            onValueChange={(v) =>
+                              setProfessionalProfile({
+                                ...professionalProfile,
+                                years_of_experience: Number.parseInt(v),
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={
+                                {
+                                  borderColor: "#e5e7eb",
+                                  "--tw-ring-color": "#1e2a3e",
+                                } as React.CSSProperties
+                              }
+                            >
+                              <SelectValue placeholder="Select years" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {experienceYears.map((y) => (
+                                <SelectItem key={y} value={y.toString()}>
+                                  {y === 0 ? "Less than 1 year" : y === 1 ? "1 year" : `${y} years`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-3">
                           <Label className="text-gray-700 font-medium">Highest Qualification</Label>
@@ -1018,8 +1226,10 @@ export default function ProfilePage() {
                               setProfessionalProfile({ ...professionalProfile, highest_qualification: v })
                             }
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select qualification" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -1037,8 +1247,10 @@ export default function ProfilePage() {
                             value={professionalProfile.industry_field || ""}
                             onValueChange={(v) => setProfessionalProfile({ ...professionalProfile, industry_field: v })}
                           >
-                            <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                              style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                            <SelectTrigger
+                              className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                              style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                            >
                               <SelectValue placeholder="Select industry" />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -1054,36 +1266,18 @@ export default function ProfilePage() {
                     </TabsContent>
 
                     <TabsContent value="preferences" className="space-y-6 animate-in fade-in">
-                      <div className="space-y-3">
-                        <Label className="text-gray-700 font-medium">Preferred Destination</Label>
-                        <Select
-                          value={professionalProfile.preferred_destination || ""}
-                          onValueChange={(v) =>
-                            setProfessionalProfile({ ...professionalProfile, preferred_destination: v })
-                          }
-                        >
-                          <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                            {COUNTRIES.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
                       <div className="space-y-5 p-4 bg-gray-50 rounded-xl">
                         <div className="flex items-center justify-between">
                           <Label className="text-gray-700 font-medium flex items-center gap-2">
                             <DollarSign className="w-4 h-4" />
-                            Budget Range
+                            Budget Range (Initial Settlement Cost)
                           </Label>
-                          <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white">
-                            ${professionalProfile.budget_min.toLocaleString()} - ${professionalProfile.budget_max.toLocaleString()}
-                          </span>
+                          {professionalProfile.budget_max > 0 && (
+                            <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white">
+                              ${professionalProfile.budget_min.toLocaleString()} - $
+                              {professionalProfile.budget_max.toLocaleString()}
+                            </span>
+                          )}
                         </div>
 
                         <Select
@@ -1091,12 +1285,14 @@ export default function ProfilePage() {
                           onValueChange={(value) => {
                             const bracket = PROFESSIONAL_BUDGET_BRACKETS.find((b) => b.max.toString() === value)
                             if (bracket) {
-                              setProfessionalProfile({ ...professionalProfile, budget_min: bracket.min, budget_max: bracket.max })
+                              handleProfessionalBudgetChange(bracket.min, bracket.max)
                             }
                           }}
                         >
-                          <SelectTrigger className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
-                            style={{ borderColor: '#e5e7eb', '--tw-ring-color': '#1e2a3e' } as React.CSSProperties}>
+                          <SelectTrigger
+                            className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                            style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                          >
                             <SelectValue placeholder="Select your budget range" />
                           </SelectTrigger>
                           <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -1113,10 +1309,112 @@ export default function ProfilePage() {
 
                         {professionalProfile.budget_max > 0 && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Info className="w-4 h-4" />
                             <span>
-                              Selected: ${professionalProfile.budget_min.toLocaleString()} - ${professionalProfile.budget_max.toLocaleString()}
+                              Selected: ${professionalProfile.budget_min.toLocaleString()} - $
+                              {professionalProfile.budget_max.toLocaleString()} (Initial settlement costs)
                             </span>
                           </div>
+                        )}
+
+                        {isProfessionalBelowMinimum && (
+                          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-red-700">
+                              <p className="font-medium">Budget too low</p>
+                              <p>
+                                The minimum initial settlement budget for any country is $
+                                {professionalMinimumBudget.toLocaleString()}. Please select a higher budget range.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-gray-700 font-medium">Preferred Destination</Label>
+                        <Select
+                          value={professionalProfile.preferred_destination || ""}
+                          onValueChange={(v) =>
+                            setProfessionalProfile({ ...professionalProfile, preferred_destination: v })
+                          }
+                        >
+                          <SelectTrigger
+                            className="h-11 rounded-lg border-gray-300 focus:ring-2 focus:ring-offset-0"
+                            style={{ borderColor: "#e5e7eb", "--tw-ring-color": "#1e2a3e" } as React.CSSProperties}
+                          >
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            {COUNTRIES.map((c) => {
+                              const budgetInfo = getProfessionalCountryBudgetInfo(c)
+                              const isAffordable =
+                                !budgetInfo ||
+                                !professionalProfile.budget_max ||
+                                professionalProfile.budget_max >= budgetInfo.min
+
+                              return (
+                                <SelectItem
+                                  key={c}
+                                  value={c}
+                                  disabled={professionalProfile.budget_max > 0 && !isAffordable}
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span
+                                      className={
+                                        professionalProfile.budget_max > 0 && !isAffordable
+                                          ? "text-muted-foreground opacity-50"
+                                          : ""
+                                      }
+                                    >
+                                      {c}
+                                    </span>
+                                    {budgetInfo && professionalProfile.budget_max > 0 && (
+                                      <span className={`text-xs ${isAffordable ? "text-green-600" : "text-red-500"}`}>
+                                        {isAffordable ? "✓ Affordable" : `Min: $${(budgetInfo.min / 1000).toFixed(1)}k`}
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Budget validation feedback */}
+                        {professionalProfile.preferred_destination && professionalBudgetValidation && (
+                          <>
+                            {professionalBudgetValidation.sufficient ? (
+                              <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-green-700">
+                                  <p className="font-medium">
+                                    Budget compatible with {professionalProfile.preferred_destination}
+                                  </p>
+                                  <p>
+                                    Typical initial costs: ${professionalBudgetValidation.minRequired.toLocaleString()}{" "}
+                                    - ${professionalBudgetValidation.maxRecommended.toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              professionalBudgetWarning && (
+                                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                  <div className="text-sm text-amber-700">
+                                    <p className="font-medium">Budget may be insufficient</p>
+                                    <p>{professionalBudgetWarning}</p>
+                                    {professionalAffordableCountries.length > 0 && (
+                                      <p className="mt-1">
+                                        <strong>Suggested alternatives:</strong>{" "}
+                                        {professionalAffordableCountries.slice(0, 4).join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </>
                         )}
                       </div>
                     </TabsContent>
@@ -1133,7 +1431,7 @@ export default function ProfilePage() {
                           />
                           <div className="flex flex-col items-center gap-4">
                             <div className="w-20 h-20 rounded-xl bg-blue-100 flex items-center justify-center">
-                              <Upload className="w-10 h-10" style={{ color: '#1e2a3e' }} />
+                              <Upload className="w-10 h-10" style={{ color: "#1e2a3e" }} />
                             </div>
                             <div>
                               <p className="text-lg font-semibold text-gray-900">Upload CV</p>
@@ -1167,7 +1465,11 @@ export default function ProfilePage() {
                             <button
                               onClick={() => {
                                 setCvFileName(null)
-                                setProfessionalProfile({ ...professionalProfile, cv_file_url: null, cv_parsed_data: null })
+                                setProfessionalProfile({
+                                  ...professionalProfile,
+                                  cv_file_url: null,
+                                  cv_parsed_data: null,
+                                })
                                 setCvParseError(null)
                               }}
                               className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
@@ -1204,35 +1506,45 @@ export default function ProfilePage() {
                                 <p className="font-medium">{professionalProfile.cv_parsed_data.personalInfo.email}</p>
                               </div>
                             )}
-                            {professionalProfile.cv_parsed_data.skills?.length > 0 && (
-                              <div className="md:col-span-2">
-                                <p className="text-sm text-gray-600 mb-2">Skills</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {professionalProfile.cv_parsed_data.skills.slice(0, 8).map((skill, i) => (
-                                    <span key={i} className="px-3 py-1.5 bg-white text-gray-800 rounded-lg text-sm font-medium border border-blue-200">
-                                      {skill}
-                                    </span>
-                                  ))}
-                                  {professionalProfile.cv_parsed_data.skills.length > 8 && (
-                                    <span className="px-3 py-1.5 text-gray-600 text-sm">
-                                      +{professionalProfile.cv_parsed_data.skills.length - 8} more
-                                    </span>
-                                  )}
+                            {professionalProfile.cv_parsed_data.skills &&
+                              professionalProfile.cv_parsed_data.skills.length > 0 && (
+                                <div className="md:col-span-2">
+                                  <p className="text-sm text-gray-600 mb-2">Skills</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {professionalProfile.cv_parsed_data.skills.slice(0, 8).map((skill, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-3 py-1.5 bg-white text-gray-800 rounded-lg text-sm font-medium border border-blue-200"
+                                      >
+                                        {skill}
+                                      </span>
+                                    ))}
+                                    {professionalProfile.cv_parsed_data.skills.length > 8 && (
+                                      <span className="px-3 py-1.5 text-gray-600 text-sm">
+                                        +{professionalProfile.cv_parsed_data.skills.length - 8} more
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                            {professionalProfile.cv_parsed_data.experience?.length > 0 && (
-                              <div>
-                                <p className="text-sm text-gray-600">Experience</p>
-                                <p className="font-medium">{professionalProfile.cv_parsed_data.experience.length} position(s)</p>
-                              </div>
-                            )}
-                            {professionalProfile.cv_parsed_data.education?.length > 0 && (
-                              <div>
-                                <p className="text-sm text-gray-600">Education</p>
-                                <p className="font-medium">{professionalProfile.cv_parsed_data.education.length} entry(ies)</p>
-                              </div>
-                            )}
+                              )}
+                            {professionalProfile.cv_parsed_data.experience &&
+                              professionalProfile.cv_parsed_data.experience.length > 0 && (
+                                <div>
+                                  <p className="text-sm text-gray-600">Experience</p>
+                                  <p className="font-medium">
+                                    {professionalProfile.cv_parsed_data.experience.length} position(s)
+                                  </p>
+                                </div>
+                              )}
+                            {professionalProfile.cv_parsed_data.education &&
+                              professionalProfile.cv_parsed_data.education.length > 0 && (
+                                <div>
+                                  <p className="text-sm text-gray-600">Education</p>
+                                  <p className="font-medium">
+                                    {professionalProfile.cv_parsed_data.education.length} entry(ies)
+                                  </p>
+                                </div>
+                              )}
                           </div>
                         </div>
                       )}

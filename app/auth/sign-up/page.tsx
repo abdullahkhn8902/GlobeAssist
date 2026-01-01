@@ -53,6 +53,9 @@ export default function SignUpPage() {
         email: emailNormalized,
         password: passwordNormalized,
         options: {
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL
+            ? `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL}/auth/callback`
+            : `${window.location.origin}/auth/callback`,
           data: {
             full_name: name,
             profile_type: profileType,
@@ -75,39 +78,8 @@ export default function SignUpPage() {
       }
 
       if (data?.user) {
-        const { error: profileError } = await supabase.from("user_profiles").upsert(
-          {
-            user_id: data.user.id,
-            full_name: name,
-            email: email,
-            profile_type: profileType,
-            onboarding_completed: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        )
-
-        if (profileError) {
-          console.error("Error creating user profile:", profileError)
-          messageApi.error("Failed to create user profile. Please try again or contact support.")
-          setIsLoading(false)
-          return
-        }
-
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: emailNormalized,
-          password: passwordNormalized,
-        })
-
-        if (signInError) {
-          messageApi.error("Account created but sign in failed. Please try logging in.")
-          router.push("/auth/login")
-          return
-        }
-
-        messageApi.success("Account created successfully!")
-        router.push("/onboarding")
+        messageApi.success("Account created! Please check your email to confirm your account.")
+        router.push("/auth/sign-up-success")
       }
     } catch (error: unknown) {
       messageApi.error(error instanceof Error ? error.message : "An unexpected error occurred. Please try again.")
@@ -128,8 +100,6 @@ export default function SignUpPage() {
                 <Globe className="w-5 h-5 text-white" />
               </div>
             </Link>
-
-           
 
             <div className="flex items-center gap-3">
               <Link

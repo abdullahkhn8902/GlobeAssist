@@ -36,6 +36,14 @@ export default function LoginPage() {
       if (signInError) {
         const errorMessage = signInError.message.toLowerCase()
 
+        if (errorMessage.includes("email not confirmed") || errorMessage.includes("email_not_confirmed")) {
+          messageApi.error(
+            "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
+          )
+          setIsLoading(false)
+          return
+        }
+
         if (errorMessage.includes("invalid login credentials") || errorMessage.includes("invalid_credentials")) {
           messageApi.error("Incorrect email or password. Please check your credentials and try again.")
         } else if (errorMessage.includes("too many requests") || errorMessage.includes("rate")) {
@@ -45,6 +53,15 @@ export default function LoginPage() {
         } else {
           messageApi.error(signInError.message)
         }
+        setIsLoading(false)
+        return
+      }
+
+      if (data?.user && !data.user.email_confirmed_at) {
+        messageApi.error(
+          "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
+        )
+        await supabase.auth.signOut()
         setIsLoading(false)
         return
       }
@@ -84,8 +101,6 @@ export default function LoginPage() {
                 <Globe className="w-5 h-5 text-white" />
               </div>
             </Link>
-
-           
 
             <div className="flex items-center gap-3">
               <Link
@@ -150,7 +165,14 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  />
+                  <label htmlFor="remember-me" className="text-sm text-[#475569] cursor-pointer">
+                    Remember me
+                  </label>
                 </div>
                 <Link href="/auth/forgot-password" className="text-sm text-[#1d293d] hover:underline font-medium">
                   Forgot password
