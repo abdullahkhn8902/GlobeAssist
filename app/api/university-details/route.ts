@@ -97,6 +97,7 @@ async function fetchUniversityDataFromPerplexity(
   universityName: string,
   countryName: string,
   studentInterests?: string[],
+  degreeToPursue?: string,
 ): Promise<{
   description: string
   worldRanking: string
@@ -110,33 +111,40 @@ async function fetchUniversityDataFromPerplexity(
   }
 
   const interestsText = studentInterests && studentInterests.length ? `Student interests: ${studentInterests.join(", ")}.` : "Student interests: Not specified.";
+  const degreeText = degreeToPursue ? `Degree to pursue: ${degreeToPursue}.` : "Degree to pursue: Not specified.";
+  const studentBackground = `${degreeText} ${interestsText}`.trim()
 
-  const prompt = `Provide study abroad information for ${universityName} in ${countryName}. ${interestsText} Return ONLY valid JSON:
+  // Request a reasonable number of programs while allowing the LLM to return fewer when necessary.
+  const desiredProgramsMin = Math.max(3, MIN_REQUIRED_PROGRAMS)
+  const desiredProgramsMax = 12
 
+  const prompt = `You are an expert university admissions advisor. Provide accurate, real university program information only as JSON.
+
+University: ${universityName} in ${countryName}
+${studentBackground}
+
+Return between ${desiredProgramsMin} and ${desiredProgramsMax} genuine programs (no sample or placeholder entries). Each program MUST include: name, qualification, duration, fees, nextIntake, entryScore. Fees must be realistic and unique across programs.
+
+Return ONLY valid JSON (no markdown or code fences):
 {
   "description": "Brief university description (max 150 chars)",
   "worldRanking": "THE World Ranking position (e.g., '39' or 'Top 100')",
-  "applicationFee": "Application fee with currency (e.g., '$150 AUD' or 'Free')",
-  "applicationRequirements": ["Requirement 1", "Requirement 2", "Requirement 3", "Requirement 4"],
+  "applicationFee": "Application fee with currency (e.g., 'USD 150' or 'Free')",
+  "applicationRequirements": ["Requirement 1", "Requirement 2"],
   "programs": [
     {
-      "name": "Program Name",
-      "qualification": "Masters Degree",
-      "duration": "1.5 Year(s)",
-      "fees": "AUD 58976", 
-      "nextIntake": "24 July 2025",
-      "entryScore": "6.5 IELTS"
+      "name": "Exact Program Name",
+      "qualification": "${degreeToPursue || "Qualification"}",
+      "duration": "e.g., '1.5 Years'",
+      "fees": "Currency Amount (e.g., 'USD 45000')" MOST IMPORTANT FEES MUST BE ACCURATE DIFFERENT OF EACH PROGRAM,
+      "nextIntake": "e.g., 'January 2025'",
+      "entryScore": "e.g., '6.5 IELTS'"
     }
   ]
 }
 
-REQUIREMENTS:
-- List 10-15 popular international student programs must be 100% relevant for this student and prioritize programs that match the student's interests above.
-- Use real program names and accurate fees
-- Application requirements should be realistic (typically 4 items)
-- Include academic requirements, English requirements, documents needed
-- Most Most Important the tuition fee must be 100% correct and each program must have different tuition fee and must be 100% correct
-- Return ONLY JSON`
+CRITICAL: do NOT include null or undefined values and do NOT fabricate program names that are clearly fictitious. Focus on programs relevant to the student's interests.`
+
 
   try {
     console.log(`[GlobeAssist Server] Calling Perplexity Sonar Pro for ${universityName}`)
@@ -212,9 +220,14 @@ REQUIREMENTS:
   }
 }
 
-async function fetchUniversityDetails(universityName: string, countryName: string, studentInterests?: string[]): Promise<UniversityDetails | null> {
+async function fetchUniversityDetails(
+  universityName: string,
+  countryName: string,
+  studentInterests?: string[],
+  degreeToPursue?: string,
+): Promise<UniversityDetails | null> {
   const [perplexityData, universityImageUrl] = await Promise.all([
-    fetchUniversityDataFromPerplexity(universityName, countryName, studentInterests),
+    fetchUniversityDataFromPerplexity(universityName, countryName, studentInterests, degreeToPursue),
     fetchUniversityImage(universityName),
   ])
 
@@ -226,8 +239,8 @@ async function fetchUniversityDetails(universityName: string, countryName: strin
   const validPrograms = perplexityData.programs.filter(validateProgram)
 
   if (validPrograms.length < MIN_REQUIRED_PROGRAMS) {
-    console.error(`[GlobeAssist Server] Insufficient valid programs: ${validPrograms.length}`)
-    return null
+    console.warn(`[GlobeAssist Server] Only ${validPrograms.length} valid programs found (need ${MIN_REQUIRED_PROGRAMS}) — continuing with partial results`)
+    // Continue with whatever valid programs were returned rather than failing outright.
   }
 
   return {
@@ -304,15 +317,16 @@ export async function GET(request: Request) {
     // Fetch student's fields_of_interest (if any) to personalize the LLM prompt
     const { data: studentProfile } = await supabase
       .from("student_profiles")
-      .select("fields_of_interest")
+      .select("fields_of_interest, degree_to_pursue")
       .eq("user_id", user.id)
       .maybeSingle()
 
     const studentInterests: string[] | undefined = Array.isArray(studentProfile?.fields_of_interest)
       ? studentProfile.fields_of_interest
       : undefined
+    const degreeToPursue: string | undefined = studentProfile?.degree_to_pursue || undefined
 
-    const universityDetails = await fetchUniversityDetails(universityName, countryName, studentInterests)
+    const universityDetails = await fetchUniversityDetails(universityName, countryName, studentInterests, degreeToPursue)
 
     if (!universityDetails) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+// profile page file (update/replace your existing file content with this)
 "use client"
 
 import type React from "react"
@@ -191,39 +192,24 @@ export default function ProfilePage() {
     return false
   }, [userProfile, studentProfile, originalStudentProfile, professionalProfile, originalProfessionalProfile])
 
-  const clearCachedRecommendations = async (userId: string, profileType: string) => {
-    const supabase = createClient()
-
+  // CHANGE: Replace client-side cache clearing with server-side API call
+  const clearCachedRecommendations = async () => {
     try {
-      if (profileType === "student") {
-        // Clear ALL student-related cache tables
-        await Promise.all([
-          supabase.from("country_recommendations").delete().eq("user_id", userId),
-          supabase.from("scholarships_cache").delete().eq("user_id", userId),
-          supabase.from("timeline_recommendations").delete().eq("user_id", userId),
-          supabase.from("country_details_cache").delete().eq("user_id", userId),
-          supabase.from("university_details_cache").delete().eq("user_id", userId),
-          supabase.from("program_details_cache").delete().eq("user_id", userId),
-          supabase.from("visa_requirements_cache").delete().eq("user_id", userId),
-          supabase.from("accommodation_cache").delete().eq("user_id", userId),
-        ])
+      const response = await fetch("/api/clear-cache", {
+        method: "DELETE",
+      })
 
-        console.log(`[Profile] Cleared ALL student cache tables for user: ${userId}`)
-      } else {
-        // Clear ALL professional-related cache tables
-        await Promise.all([
-          supabase.from("job_recommendations").delete().eq("user_id", userId),
-          supabase.from("professional_jobs_cache").delete().eq("user_id", userId),
-          supabase.from("professional_visa_cache").delete().eq("user_id", userId),
-          supabase.from("country_details_cache").delete().eq("user_id", userId),
-          supabase.from("accommodation_cache").delete().eq("user_id", userId),
-        ])
-
-        console.log(`[Profile] Cleared ALL professional cache tables for user: ${userId}`)
+      if (!response.ok) {
+        throw new Error("Failed to clear cache")
       }
+
+      const data = await response.json()
+      console.log(`[Profile] Cache cleared via API:`, data)
+      return true
     } catch (error) {
       console.error("[Profile] Error clearing cache:", error)
       // Don't throw - we still want to save the profile even if cache clearing fails
+      return false
     }
   }
 
@@ -527,8 +513,9 @@ export default function ProfilePage() {
 
         if (error) throw error
 
+        // CHANGE: Use server-side API to clear cache
         if (preferencesChanged) {
-          await clearCachedRecommendations(user.id, userProfile.profile_type)
+          await clearCachedRecommendations()
           toast({
             title: "Profile updated",
             description:
@@ -559,8 +546,9 @@ export default function ProfilePage() {
 
         if (error) throw error
 
+        // CHANGE: Use server-side API to clear cache
         if (preferencesChanged) {
-          await clearCachedRecommendations(user.id, userProfile.profile_type)
+          await clearCachedRecommendations()
           toast({
             title: "Profile updated",
             description:
@@ -615,14 +603,15 @@ export default function ProfilePage() {
 
   const studentMinimumBudget = getMinimumBudget("student")
   const professionalMinimumBudget = getMinimumBudget("professional")
-  const isStudentBelowMinimum = Boolean(
-    studentProfile && studentProfile.budget_max > 0 && studentProfile.budget_max < studentMinimumBudget,
-  )
-  const isProfessionalBelowMinimum = Boolean(
-    professionalProfile &&
-      professionalProfile.budget_max > 0 &&
-      professionalProfile.budget_max < professionalMinimumBudget,
-  )
+
+  // <-- IMPORTANT FIXES: force strict boolean types so TS doesn't infer union types (null | boolean)
+  const isStudentBelowMinimum: boolean =
+    !!studentProfile && studentProfile.budget_max > 0 && studentProfile.budget_max < studentMinimumBudget
+
+  const isProfessionalBelowMinimum: boolean =
+    !!professionalProfile &&
+    professionalProfile.budget_max > 0 &&
+    professionalProfile.budget_max < professionalMinimumBudget
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
