@@ -117,9 +117,9 @@ ${personalization}
 JSON FORMAT:
 {
   "description": "Short factual university overview (max 150 chars)",
-  "worldRanking": "Global ranking or range (e.g. 'Top 200')",
-  "applicationFee": "Application fee with currency or 'Free'",
-  "applicationRequirements": ["Requirement 1", "Requirement 2","Requirement 3","Requirement 4"],
+  "worldRanking": "Global ranking or range (e.g. 'Top 200') If you dont know Assume worldRanking of given UNI",
+  "applicationFee": "Application fee with currency or 'Free' IMPORTANT",
+  "applicationRequirements": ["Requirement 1", "Requirement 2","Requirement 3","Requirement 4"], //If you dont know Assume Requirements of given UNI
   "programs": [
     {
       "name": "Official program name",
