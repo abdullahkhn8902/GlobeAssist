@@ -97,7 +97,20 @@ export default function UniversityDetailPage() {
         const data = await response.json()
 
         if (data.success) {
-          setDetails(data.data)
+          // Ensure all required fields exist
+          const safeData: UniversityDetails = {
+            universityName: data.data?.universityName || universityName,
+            countryName: data.data?.countryName || countryName,
+            universityImageUrl: data.data?.universityImageUrl || "/placeholder.svg",
+            description: data.data?.description || `Study at ${universityName}`,
+            worldRanking: data.data?.worldRanking || "Not ranked",
+            applicationFee: data.data?.applicationFee || "Varies",
+            applicationRequirements: Array.isArray(data.data?.applicationRequirements) 
+              ? data.data.applicationRequirements 
+              : [],
+            programs: Array.isArray(data.data?.programs) ? data.data.programs : [],
+          }
+          setDetails(safeData)
         } else {
           setError(data.error || "Failed to load university details")
         }
@@ -139,6 +152,7 @@ export default function UniversityDetailPage() {
   }
 
   const shortenRequirement = (req: string) => {
+    if (!req) return ""
     if (req.length > 50) {
       return req.substring(0, 47) + "..."
     }
@@ -150,6 +164,11 @@ export default function UniversityDetailPage() {
     const encodedCountryName = encodeURIComponent(countryName)
     router.push(`/dashboard/country/${encodedCountryName}/university/${encodedUniversityName}/accommodations`)
   }
+
+  // Ensure applicationRequirements exists before using slice
+  const displayRequirements = Array.isArray(details.applicationRequirements) 
+    ? details.applicationRequirements.slice(0, 4) 
+    : []
 
   return (
     <div className="min-h-screen lg:h-screen bg-slate-100 flex flex-col lg:flex-row overflow-auto lg:overflow-hidden">
@@ -192,7 +211,7 @@ export default function UniversityDetailPage() {
           <div className="relative h-32 sm:h-36 lg:h-44 overflow-hidden flex-shrink-0 mb-5">
             <Image
               src={details.universityImageUrl || "/placeholder.svg"}
-              alt={details.universityName}
+              alt={details.universityName || "University image"}
               fill
               className="object-cover"
               unoptimized
@@ -228,7 +247,7 @@ export default function UniversityDetailPage() {
                 <h2 className="text-lg lg:text-2xl font-bold text-slate-700 mb-1.5 ">Application Requirements</h2>
               </div>
               <ul className="space-y-1 lg:space-y-1.5">
-                {details.applicationRequirements.slice(0, 4).map((requirement, index) => (
+                {displayRequirements.map((requirement, index) => (
                   <li key={index} className="flex items-start gap-1.5 lg:gap-2 text-slate-600 text-[10px] lg:text-sm">
                     {getRequirementIcon(index)}
                     <span className="line-clamp-1 ">{shortenRequirement(requirement)}</span>

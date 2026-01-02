@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 160
+
+/* ===================== TYPES ===================== */
 
 interface Program {
   name: string
@@ -25,41 +27,42 @@ interface UniversityDetails {
   programs: Program[]
 }
 
+/* ===================== CONFIG ===================== */
+
 const PERPLEXITY_API_KEY = process.env.OPENROUTER_API_KEY_SONAR_SEARCH
 const SERPER_API_KEY = process.env.SERPER_GOOGLE_SEARCH_API
-
 const MIN_REQUIRED_PROGRAMS = 3
+
+/* ===================== HELPERS ===================== */
 
 function validateProgram(program: Program): boolean {
   return (
-    typeof program.name === "string" &&
+    typeof program?.name === "string" &&
     program.name.length > 3 &&
-    typeof program.qualification === "string" &&
-    program.qualification.length > 0 &&
-    typeof program.duration === "string" &&
-    program.duration.length > 0
+    typeof program?.qualification === "string" &&
+    typeof program?.duration === "string"
   )
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
   let lastError: Error | null = null
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+
+  for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, options)
-      if (response.ok) return response
-      if (response.status === 429) {
-        await new Promise((resolve) => setTimeout(resolve, 3000 * (attempt + 1)))
+      const res = await fetch(url, options)
+      if (res.ok) return res
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 3000 * (i + 1)))
         continue
       }
-      return response
-    } catch (error) {
-      lastError = error as Error
-      if (attempt < maxRetries - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)))
-      }
+      return res
+    } catch (err) {
+      lastError = err as Error
+      await new Promise(r => setTimeout(r, 2000 * (i + 1)))
     }
   }
-  throw lastError || new Error("Max retries exceeded")
+
+  throw lastError || new Error("Fetch failed")
 }
 
 async function fetchUniversityImage(universityName: string): Promise<string> {
@@ -68,192 +71,125 @@ async function fetchUniversityImage(universityName: string): Promise<string> {
   }
 
   try {
-    const response = await fetch("https://google.serper.dev/images", {
+    const res = await fetch("https://google.serper.dev/images", {
       method: "POST",
       headers: {
         "X-API-KEY": SERPER_API_KEY,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        q: `${universityName} main building campus`,
-        num: 1,
-      }),
+      body: JSON.stringify({ q: `${universityName} campus`, num: 1 }),
     })
 
-    if (!response.ok) return `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(universityName)}`
-
-    const data = await response.json()
-    if (data.images?.[0]?.imageUrl) {
-      return data.images[0].imageUrl
-    }
-  } catch (error) {
-    console.error(`[GlobeAssist Server] Error fetching university image:`, error)
+    if (!res.ok) throw new Error("Image fetch failed")
+    const data = await res.json()
+    return data?.images?.[0]?.imageUrl
+      || `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(universityName)}`
+  } catch {
+    return `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(universityName)}`
   }
-
-  return `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(universityName + " campus")}`
 }
+
+/* ===================== PERPLEXITY ===================== */
 
 async function fetchUniversityDataFromPerplexity(
   universityName: string,
   countryName: string,
   studentInterests?: string[],
   degreeToPursue?: string,
-): Promise<{
-  description: string
-  worldRanking: string
-  applicationFee: string
-  applicationRequirements: string[]
-  programs: Program[]
-} | null> {
-  if (!PERPLEXITY_API_KEY) {
-    console.error("[GlobeAssist Server] OPENROUTER_API_KEY_SONAR_SEARCH not configured")
-    return null
-  }
+): Promise<UniversityDetails | null> {
 
-  const interestsText = studentInterests && studentInterests.length ? `Student interests: ${studentInterests.join(", ")}.` : "Student interests: Not specified.";
-  const degreeText = degreeToPursue ? `Degree to pursue: ${degreeToPursue}.` : "Degree to pursue: Not specified.";
-  const studentBackground = `${degreeText} ${interestsText}`.trim()
+  if (!PERPLEXITY_API_KEY) return null
 
-  // Request a reasonable number of programs while allowing the LLM to return fewer when necessary.
-  const desiredProgramsMin = Math.max(3, MIN_REQUIRED_PROGRAMS)
-  const desiredProgramsMax = 12
+  const personalization = `
+Student profile:
+- Intended degree: ${degreeToPursue || "Not specified"}
+- Interests: ${studentInterests?.join(", ") || "Not specified"}
+`
 
-  const prompt = `You are an expert university admissions advisor. Provide accurate, real university program information only as JSON.
+  const prompt = `
+Provide REAL, search-based information for the following university.
+Return ONLY a valid JSON object. No markdown. No explanation.
 
-University: ${universityName} in ${countryName}
-${studentBackground}
+University: ${universityName}
+Country: ${countryName}
+${personalization}
 
-Return between ${desiredProgramsMin} and ${desiredProgramsMax} genuine programs (no sample or placeholder entries). Each program MUST include: name, qualification, duration, fees, nextIntake, entryScore. Fees must be realistic and unique across programs.
-
-Return ONLY valid JSON (no markdown or code fences):
+JSON FORMAT:
 {
-  "description": "Brief university description (max 150 chars)",
-  "worldRanking": "THE World Ranking position (e.g., '39' or 'Top 100')",
-  "applicationFee": "Application fee with currency (e.g., 'USD 150' or 'Free')",
-  "applicationRequirements": ["Requirement 1", "Requirement 2"],
+  "description": "Short factual university overview (max 150 chars)",
+  "worldRanking": "Global ranking or range (e.g. 'Top 200')",
+  "applicationFee": "Application fee with currency or 'Free'",
+  "applicationRequirements": ["Requirement 1", "Requirement 2","Requirement 3","Requirement 4"],
   "programs": [
     {
-      "name": "Exact Program Name",
-      "qualification": "${degreeToPursue || "Qualification"}",
-      "duration": "e.g., '1.5 Years'",
-      "fees": "Currency Amount (e.g., 'USD 45000')" MOST IMPORTANT FEES MUST BE ACCURATE DIFFERENT OF EACH PROGRAM,
-      "nextIntake": "e.g., 'January 2025'",
-      "entryScore": "e.g., '6.5 IELTS'"
+      "name": "Official program name",
+      "qualification": "Degree awarded",
+      "duration": "e.g. 2 Years",
+      "fees": "Estimated annual tuition with currency",
+      "nextIntake": "e.g. September 2025",
+      "entryScore": "e.g. IELTS 6.5"
     }
   ]
 }
 
-CRITICAL: do NOT include null or undefined values and do NOT fabricate program names that are clearly fictitious. Focus on programs relevant to the student's interests.`
-
+GUIDELINES:
+- Prefer official and commonly offered programs
+- Fees and intakes must be 100% real accurate and uptodate
+- Programs must be relevant to student interests when possible
+- Each and Everything in Json Format must be returned 
+`
 
   try {
-    console.log(`[GlobeAssist Server] Calling Perplexity Sonar Pro for ${universityName}`)
+    const response = await fetchWithRetry(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://v0.dev",
+        },
+        body: JSON.stringify({
+          model: "perplexity/sonar-pro-search",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.1,
+          max_tokens: 2500,
+        }),
+      }
+    )
 
-    const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://v0.dev",
-      },
-      body: JSON.stringify({
-        model: "perplexity/sonar-pro-search",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.1,
-        max_tokens: 2000,
-      }),
-    })
-
-    if (!response.ok) {
-      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status}`)
-      return null
-    }
+    if (!response.ok) return null
 
     const data = await response.json()
-    const content = data.choices?.[0]?.message?.content
+    let content = data?.choices?.[0]?.message?.content
+    if (!content) return null
 
-    if (!content) {
-      console.error(`[GlobeAssist Server] No content in Perplexity response for ${universityName}`)
-      return null
-    }
+    let cleaned = content.trim()
+    if (cleaned.startsWith("```")) cleaned = cleaned.replace(/```json|```/g, "")
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return null
 
-    let cleanedContent = content.trim()
-
-    if (cleanedContent.startsWith("```json")) cleanedContent = cleanedContent.slice(7)
-    else if (cleanedContent.startsWith("```")) cleanedContent = cleanedContent.slice(3)
-    if (cleanedContent.endsWith("```")) cleanedContent = cleanedContent.slice(0, -3)
-
-    cleanedContent = cleanedContent.trim()
-
-    const jsonStartIndex = cleanedContent.indexOf("{")
-    const jsonEndIndex = cleanedContent.lastIndexOf("}")
-
-    if (jsonStartIndex === -1 || jsonEndIndex === -1 || jsonStartIndex >= jsonEndIndex) {
-      console.error(`[GlobeAssist Server] No valid JSON found in Perplexity response for ${universityName}`)
-      return null
-    }
-
-    const jsonString = cleanedContent.substring(jsonStartIndex, jsonEndIndex + 1)
-
-    let parsed
-    try {
-      parsed = JSON.parse(jsonString)
-    } catch (parseError) {
-      console.error(`[GlobeAssist Server] Failed to parse JSON for ${universityName}`)
-      return null
-    }
-
-    console.log(`[GlobeAssist Server] Successfully parsed Perplexity response for ${universityName}`)
+    const parsed = JSON.parse(jsonMatch[0])
 
     return {
-      description: parsed.description || `World-class education at ${universityName}.`,
-      worldRanking: parsed.worldRanking || "Top 500",
-      applicationFee: parsed.applicationFee || "$100 USD",
+      universityName,
+      countryName,
+      universityImageUrl: "",
+      description: parsed.description || `Study at ${universityName}`,
+      worldRanking: parsed.worldRanking || "Not ranked",
+      applicationFee: parsed.applicationFee || "Varies",
       applicationRequirements: Array.isArray(parsed.applicationRequirements)
         ? parsed.applicationRequirements
-        : ["Meet academic requirements", "Submit required documents"],
+        : [],
       programs: Array.isArray(parsed.programs) ? parsed.programs : [],
     }
-  } catch (error) {
-    console.error(`[GlobeAssist Server] Error calling Perplexity: ${error instanceof Error ? error.message : String(error)}`)
+
+  } catch {
     return null
   }
 }
 
-async function fetchUniversityDetails(
-  universityName: string,
-  countryName: string,
-  studentInterests?: string[],
-  degreeToPursue?: string,
-): Promise<UniversityDetails | null> {
-  const [perplexityData, universityImageUrl] = await Promise.all([
-    fetchUniversityDataFromPerplexity(universityName, countryName, studentInterests, degreeToPursue),
-    fetchUniversityImage(universityName),
-  ])
-
-  if (!perplexityData) {
-    console.error(`[GlobeAssist Server] Failed to get Perplexity data for ${universityName}`)
-    return null
-  }
-
-  const validPrograms = perplexityData.programs.filter(validateProgram)
-
-  if (validPrograms.length < MIN_REQUIRED_PROGRAMS) {
-    console.warn(`[GlobeAssist Server] Only ${validPrograms.length} valid programs found (need ${MIN_REQUIRED_PROGRAMS}) — continuing with partial results`)
-    // Continue with whatever valid programs were returned rather than failing outright.
-  }
-
-  return {
-    universityName,
-    countryName,
-    universityImageUrl,
-    description: perplexityData.description,
-    worldRanking: perplexityData.worldRanking,
-    applicationFee: perplexityData.applicationFee,
-    applicationRequirements: perplexityData.applicationRequirements,
-    programs: validPrograms,
-  }
-}
+/* ===================== MAIN HANDLER ===================== */
 
 export async function GET(request: Request) {
   try {
@@ -262,133 +198,67 @@ export async function GET(request: Request) {
     const countryName = searchParams.get("country")
 
     if (!universityName || !countryName) {
-      return NextResponse.json({ success: false, error: "University and country names are required" }, { status: 400 })
+      return NextResponse.json({ success: false }, { status: 400 })
     }
 
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ success: false }, { status: 401 })
 
-    if (!user) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
-    }
-
-    console.log(`[GlobeAssist Server] Checking cache for ${universityName}`)
-
-    const { data: cachedDetails } = await supabase
+    const { data: cached } = await supabase
       .from("university_details_cache")
       .select("*")
       .eq("university_name", universityName)
       .eq("country_name", countryName)
       .maybeSingle()
 
-    if (cachedDetails && cachedDetails.programs) {
-      const cachedPrograms = cachedDetails.programs as Program[]
-      const validCachedPrograms = cachedPrograms.filter(validateProgram)
-
-      if (validCachedPrograms.length >= MIN_REQUIRED_PROGRAMS) {
-        console.log(`[GlobeAssist Server] Returning validated cached data for ${universityName}`)
-        return NextResponse.json({
-          success: true,
-          cached: true,
-          data: {
-            universityName: cachedDetails.university_name,
-            countryName: cachedDetails.country_name,
-            universityImageUrl: cachedDetails.university_image_url,
-            description: cachedDetails.description,
-            worldRanking: cachedDetails.world_ranking,
-            applicationFee: cachedDetails.application_fee,
-            applicationRequirements: cachedDetails.application_requirements,
-            programs: validCachedPrograms,
-          },
-        })
-      } else {
-        console.log(`[GlobeAssist Server] Cache has incomplete program data (${validCachedPrograms.length}), regenerating`)
-        await supabase
-          .from("university_details_cache")
-          .delete()
-          .eq("university_name", universityName)
-          .eq("country_name", countryName)
-      }
+    if (cached?.programs?.length >= MIN_REQUIRED_PROGRAMS) {
+      return NextResponse.json({ success: true, cached: true, data: cached })
     }
 
-    console.log(`[GlobeAssist Server] Fetching fresh data for ${universityName}`)
-    // Fetch student's fields_of_interest (if any) to personalize the LLM prompt
-    const { data: studentProfile } = await supabase
+    const { data: profile } = await supabase
       .from("student_profiles")
       .select("fields_of_interest, degree_to_pursue")
       .eq("user_id", user.id)
       .maybeSingle()
 
-    const studentInterests: string[] | undefined = Array.isArray(studentProfile?.fields_of_interest)
-      ? studentProfile.fields_of_interest
-      : undefined
-    const degreeToPursue: string | undefined = studentProfile?.degree_to_pursue || undefined
+    const perplexityData = await fetchUniversityDataFromPerplexity(
+      universityName,
+      countryName,
+      profile?.fields_of_interest,
+      profile?.degree_to_pursue,
+    )
 
-    const universityDetails = await fetchUniversityDetails(universityName, countryName, studentInterests, degreeToPursue)
-
-    if (!universityDetails) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to fetch university details. Please try again.",
-        },
-        { status: 503 },
-      )
+    if (!perplexityData) {
+      return NextResponse.json({ success: false }, { status: 503 })
     }
 
-    console.log(`[GlobeAssist Server] Caching complete data for ${universityName}`)
+    const image = await fetchUniversityImage(universityName)
+    perplexityData.universityImageUrl = image
+    perplexityData.programs = perplexityData.programs.filter(validateProgram)
 
-    // Delete existing cache entry
     await supabase
       .from("university_details_cache")
       .delete()
       .eq("university_name", universityName)
       .eq("country_name", countryName)
 
-    // Insert new data
-    const { error: insertError } = await supabase.from("university_details_cache").insert({
+    await supabase.from("university_details_cache").insert({
       university_name: universityName,
       country_name: countryName,
-      university_image_url: universityDetails.universityImageUrl,
-      description: universityDetails.description,
-      world_ranking: universityDetails.worldRanking,
-      application_fee: universityDetails.applicationFee,
-      application_requirements: universityDetails.applicationRequirements,
-      programs: universityDetails.programs,
+      university_image_url: image,
+      description: perplexityData.description,
+      world_ranking: perplexityData.worldRanking,
+      application_fee: perplexityData.applicationFee,
+      application_requirements: perplexityData.applicationRequirements,
+      programs: perplexityData.programs,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
 
-    if (insertError) {
-      console.error("[GlobeAssist Server] Error caching university details:", insertError)
-    } else {
-      const { data: verifyData } = await supabase
-        .from("university_details_cache")
-        .select("university_name")
-        .eq("university_name", universityName)
-        .eq("country_name", countryName)
-        .maybeSingle()
+    return NextResponse.json({ success: true, cached: false, data: perplexityData })
 
-      if (verifyData) {
-        console.log("[GlobeAssist Server] Successfully cached university details")
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      cached: false,
-      data: universityDetails,
-    })
-  } catch (error) {
-    console.error("[GlobeAssist Server] Error in university details API:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Something went wrong. Please try again later.",
-      },
-      { status: 500 },
-    )
+  } catch {
+    return NextResponse.json({ success: false }, { status: 500 })
   }
 }

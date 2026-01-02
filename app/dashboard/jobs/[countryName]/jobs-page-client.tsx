@@ -83,23 +83,40 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
   const [country, setCountry] = useState<CountryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     async function fetchJobs() {
       try {
         setLoading(true)
+        setProcessing(false)
         const response = await fetch(`/api/professional-jobs/${encodeURIComponent(countryName)}`)
+        
+        // Handle 202 status (processing)
+        if (response.status === 202) {
+          const data = await response.json()
+          setProcessing(true)
+          // Retry after delay if still processing
+          setTimeout(() => {
+            fetchJobs()
+          }, 3000) // Retry after 3 seconds
+          return
+        }
+        
         const data = await response.json()
 
         if (data.success) {
           setJobs(data.jobs || [])
           setCountry(data.country || null)
+          setProcessing(false)
         } else {
           setError(data.error || "Failed to load jobs")
+          setProcessing(false)
         }
       } catch (err) {
         console.error("[GlobeAssist Server] Error fetching jobs:", err)
         setError("Failed to connect to server")
+        setProcessing(false)
       } finally {
         setLoading(false)
       }
@@ -112,7 +129,8 @@ export function JobsPageClient({ countryName }: JobsPageClientProps) {
     router.push(`/dashboard/jobs/${encodeURIComponent(countryName)}/${jobId}`)
   }
 
-  if (loading) {
+  // Show loading state if still processing (202) or initial loading
+  if (loading || processing) {
     return <JobsShimmer countryName={countryName} />
   }
 

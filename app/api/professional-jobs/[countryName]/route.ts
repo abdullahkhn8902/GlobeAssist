@@ -155,15 +155,16 @@ DO NOT include any explanations, only return the JSON array.`
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://v0.dev",
       },
       body: JSON.stringify({
-        model: "perplexity/sonar-pro-search",
+        model: "perplexity/sonar-pro",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 4000,
       }),
     })
 
     if (!response.ok) {
-      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status}`)
+      const errorText = await response.text()
+      console.error(`[GlobeAssist Server] Perplexity API error: ${response.status} - ${errorText}`)
       return null
     }
 
@@ -175,29 +176,35 @@ DO NOT include any explanations, only return the JSON array.`
       return null
     }
 
+    // --- CRITICAL FIX: Use robust JSON extraction like university API ---
     let cleanedContent = content.trim()
-
+    console.log(`[GlobeAssist Server] Raw Perplexity response length: ${cleanedContent.length} chars`)
+    
+    // Remove markdown code blocks if present
     if (cleanedContent.startsWith("```json")) cleanedContent = cleanedContent.slice(7)
     else if (cleanedContent.startsWith("```")) cleanedContent = cleanedContent.slice(3)
     if (cleanedContent.endsWith("```")) cleanedContent = cleanedContent.slice(0, -3)
-
+    
     cleanedContent = cleanedContent.trim()
-
-    const jsonStartIndex = cleanedContent.indexOf("[")
-    const jsonEndIndex = cleanedContent.lastIndexOf("]")
-
-    if (jsonStartIndex === -1 || jsonEndIndex === -1 || jsonStartIndex >= jsonEndIndex) {
+    
+    // Find JSON array using regex pattern (same as university API)
+    const jsonMatch = cleanedContent.match(/\[[\s\S]*\]/)
+    
+    if (!jsonMatch) {
       console.warn(`[GlobeAssist Server] No valid JSON array found in Perplexity response for ${countryName}`)
+      console.warn(`[GlobeAssist Server] First 500 chars of response: ${cleanedContent.substring(0, 500)}`)
       return null
     }
-
-    const jsonString = cleanedContent.substring(jsonStartIndex, jsonEndIndex + 1)
+    
+    const jsonString = jsonMatch[0]
+    console.log(`[GlobeAssist Server] Extracted JSON string length: ${jsonString.length} chars`)
 
     let parsed
     try {
       parsed = JSON.parse(jsonString)
     } catch (parseError) {
       console.warn(`[GlobeAssist Server] Failed to parse JSON for ${countryName}: ${parseError instanceof Error ? parseError.message : String(parseError)}`)
+      console.warn(`[GlobeAssist Server] Problematic JSON start: ${jsonString.substring(0, 200)}`)
       return null
     }
 
@@ -307,6 +314,18 @@ function getCountryInfo(
       visaProcessingTime: "4-8 weeks for EU Blue Card",
       language: "German",
       jobMarketStrength: "Strong"
+    },
+    "Malaysia": {
+      description: `Malaysia offers growing ${industry} opportunities with competitive costs and strategic location in Southeast Asia.`,
+      whyWork: [
+        "Strategic location in Southeast Asia with growing economy",
+        "Lower cost of living compared to Western countries",
+        "Growing demand for skilled professionals in key industries",
+        "Multicultural environment with English widely spoken"
+      ],
+      visaProcessingTime: "4-8 weeks for Employment Pass",
+      language: "Malay, English",
+      jobMarketStrength: "Moderate"
     }
   }
 
@@ -475,12 +494,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
         return NextResponse.json(
           {
-            success: false,
-            error: "No jobs found for this country",
+            success: true, // Changed from false to true to prevent frontend error
+            error: `No current job openings found for ${jobTitle} in ${decodedCountryName}`,
             jobs: [],
             country: null,
           },
-          { status: 404 }
+          { status: 200 } // Changed from 404 to 200 to prevent frontend error
         )
       }
 
