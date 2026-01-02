@@ -217,13 +217,13 @@ export function ProfessionalStepThree({ data, onChange, onPrev, onSubmit }: Prof
       </div>
 
       {data.cvParsedData && (
-        <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+        <div className="bg-[#e2e8f0] rounded-xl p-6 space-y-4 space-y-3">
           <h3 className="font-semibold text-foreground text-sm">Extracted Information</h3>
 
           {data.cvParsedData.personalInfo?.name && (
             <p className="text-sm">
               <span className="text-muted-foreground">Name:</span>{" "}
-              <span className="text-foreground">{data.cvParsedData.personalInfo.name}</span>
+              <span className="text-foreground ">{data.cvParsedData.personalInfo.name}</span>
             </p>
           )}
 

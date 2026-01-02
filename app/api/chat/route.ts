@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         try {
           // Call OpenRouter API with streaming
           const openrouterStream = await openrouter.chat.send({
-            model: "openai/gpt-oss-120b:free",
+            model: "openai/gpt-oss-20b",
             messages: openrouterMessages,
             stream: true,
             streamOptions: {

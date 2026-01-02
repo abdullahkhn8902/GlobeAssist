@@ -163,21 +163,14 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
+              {/* <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="remember-me"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  />
-                  <label htmlFor="remember-me" className="text-sm text-[#475569] cursor-pointer">
-                    Remember me
-                  </label>
+                  
                 </div>
                 <Link href="/auth/forgot-password" className="text-sm text-[#1d293d] hover:underline font-medium">
                   Forgot password
                 </Link>
-              </div>
+              </div> */}
 
               <button
                 type="submit"
