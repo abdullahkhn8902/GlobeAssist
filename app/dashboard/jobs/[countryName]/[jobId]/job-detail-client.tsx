@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Home } from "lucide-react"
+import { ArrowLeft, Home, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JobDetailLoader } from "@/components/loaders/job-detail-loader"
 
@@ -17,7 +17,7 @@ interface JobData {
   postedDate: string
   description: string
   requirements: string[]
-  applyUrl: string
+  applyUrl?: string | null
   role: string
 }
 
@@ -37,6 +37,8 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
   const [job, setJob] = useState<JobData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [fetchingLink, setFetchingLink] = useState(false)
+  const [applyLink, setApplyLink] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchJobDetails() {
@@ -65,6 +67,81 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
 
     fetchJobDetails()
   }, [countryName, jobId])
+
+  // Prefetch application link when job is available to reduce user wait time
+  useEffect(() => {
+    if (!job) return
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await fetch("/api/professional-jobs/apply-link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job: { title: job.title, company: job.company, location: job.location, country: countryName } }),
+        })
+
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data?.link) setApplyLink(data.link)
+      } catch (err) {
+        // ignore prefetch errors
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [job, countryName])
+
+  const handleApplyNow = async () => {
+    if (!job) return
+
+    setFetchingLink(true)
+
+    try {
+      // If we already prefetched a link, use it immediately
+      if (applyLink) {
+        window.open(applyLink, "_blank", "noopener,noreferrer")
+        return
+      }
+
+      const response = await fetch("/api/professional-jobs/apply-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          job: {
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            country: countryName,
+          },
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const link = data.link
+        if (link) setApplyLink(link)
+        window.open(link || `https://www.google.com/search?q=${encodeURIComponent(`${job.title} ${job.company} apply now careers`)}`, "_blank", "noopener,noreferrer")
+      } else {
+        const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
+          `${job.title} ${job.company} apply now careers`
+        )}`
+        window.open(fallbackLink, "_blank", "noopener,noreferrer")
+      }
+    } catch (error) {
+      const fallbackLink = `https://www.google.com/search?q=${encodeURIComponent(
+        `${job.title} ${job.company} careers`
+      )}`
+      window.open(fallbackLink, "_blank", "noopener,noreferrer")
+    } finally {
+      setFetchingLink(false)
+    }
+  }
 
   if (loading) {
     return <JobDetailLoader />
@@ -150,11 +227,20 @@ export function JobDetailClient({ countryName, jobId }: JobDetailClientProps) {
       {/* Action Buttons */}
       <div className="space-y-4 max-w-2xl">
         {/* Apply Button */}
-        <a href={job.applyUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <Button className="w-full bg-slate-600 hover:bg-slate-700 text-white font-medium py-3 rounded-lg">
-            Apply Now
-          </Button>
-        </a>
+        <Button 
+          onClick={handleApplyNow}
+          disabled={fetchingLink}
+          className="w-full bg-slate-600 hover:bg-slate-700 text-white font-medium py-3 rounded-lg"
+        >
+          {fetchingLink ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Finding application page...
+            </>
+          ) : (
+            "Apply Now"
+          )}
+        </Button>
 
         <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
           <h3 className="text-slate-800 font-semibold mb-3 text-center">Find Nearby Housing</h3>
