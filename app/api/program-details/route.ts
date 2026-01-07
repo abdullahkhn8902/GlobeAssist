@@ -147,7 +147,7 @@ async function fetchAdditionalProgramDetails(
   ]
 }
 
-Return ONLY JSON with real 2024-2025 data.`
+Return ONLY JSON with real 2026-2027 data.`
 
   try {
     console.log(`[GlobeAssist Server] Calling Perplexity for additional details: ${programName}`)
@@ -160,7 +160,7 @@ Return ONLY JSON with real 2024-2025 data.`
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://v0.dev",
       },
       body: JSON.stringify({
-        model: "perplexity/sonar-pro-search",
+        model: "perplexity/sonar-pro",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         max_tokens: 800, // Reduced - only fetching additional details
