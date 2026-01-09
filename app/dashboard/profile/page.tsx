@@ -906,7 +906,6 @@ export default function ProfilePage() {
                               <SelectItem key={bracket.max} value={bracket.max.toString()}>
                                 <div className="flex flex-col">
                                   <span className="font-medium">{bracket.label}</span>
-                                  <span className="text-xs text-muted-foreground">{bracket.description}</span>
                                 </div>
                               </SelectItem>
                             ))}
@@ -1289,7 +1288,6 @@ export default function ProfilePage() {
                               <SelectItem key={bracket.max} value={bracket.max.toString()}>
                                 <div className="flex flex-col">
                                   <span className="font-medium">{bracket.label}</span>
-                                  <span className="text-xs text-muted-foreground">{bracket.description}</span>
                                 </div>
                               </SelectItem>
                             ))}
